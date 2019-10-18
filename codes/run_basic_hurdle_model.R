@@ -3,6 +3,7 @@
 
 # load library
 library(rstan)
+library(shinystan)
 
 # simulate data
 PA <- rbinom(500, 1, 0.1) # simulate presence/absence data
