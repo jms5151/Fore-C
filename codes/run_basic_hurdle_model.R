@@ -6,8 +6,8 @@ library(rstan)
 
 # simulate data
 PA <- rbinom(500, 1, 0.1) # simulate presence/absence data
-y <- round(rbeta(N,2,5)*100)*PA # simulate severity data with left skewed distribution
-N <- length(y) # simulate presence/absence data
+N <- length(PA) # simulate presence/absence data
+y <- round(rpois(N,6))*PA # simulate severity data with left skewed distribution
 
 # compile model
 model2 <- stan_model('codes/basic_hurdle_model.stan')
@@ -24,4 +24,3 @@ params <- extract(fit2)
 hist(params$theta)
 hist(params$lambda) # mean(params$lambda) should be approximately = mean(y[y>0])
 launch_shinystan(fit2)
-
