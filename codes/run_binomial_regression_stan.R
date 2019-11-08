@@ -3,33 +3,34 @@ library(rstan)
 library(shinystan)
 library(boot)
 
+options(mc.cores=4)
+
 # simulate data
 N <- 100 # number of sites
 C <- round(runif(N, min=10, max=100)) # number of colonies on a transect
 X <- t(scale(rnorm(N,27,2))) # driver variable 1: temperature values at each transect
 b0 <- -3 # intercept
-b1 <- 0.2 # slope (increase in log odds of disease per unit x)
-sigma <- 0.2
-mu <- rnorm(N, (X * b1 + b0), sigma)
-p <- inv.logit(mu) # inverse logit (exp(mu)/(1+exp(mu))) to calculate probability of disease as a function of temperature 
+b1 <- 1 # slope (increase in log odds of disease per unit x)
+mu <- (X * b1 + b0) # generating function to describe logit prevalence
+p <- inv.logit(mu) # prevalence 
 M <- 1 # dimensions of x (# driver vars)
-Y <- rbinom(N,C,p)
+Y <- rbinom(N,C,p) # number of diseased colonies on each transect
+# plot(X,p, pch=16)
+# plot(X,mu, pch=16)
 # plot(p,Y, pch=16)
-# plot(x,Y, pch=16)
-df <- data.frame(N=N, C=C, X=X, M=M, Y=Y)
+# plot(X,Y, pch=16)
+N_new <- 1000
+X_new <- t(seq(from=min(X), to=max(X), length=N_new))
+
+# combine data into dataframe
+df <- data.frame(N=N, C=C, X=X, M=M, Y=Y, N_new=N_new, X_new=X_new) 
 
 # compile model
 binomMod <- stan_model('codes/binomial_model.stan')
 
 # pass data to stan and run model
-options(mc.cores=4)
-fit2 <- sampling(binomMod, list(N=N, C=C, X=X, M=M, Y=Y), iter=1000, chains=4)
+fit2 <- sampling(binomMod, list(N=N, C=C, X=X, M=M, Y=Y, N_new=N_new, X_new=X_new), iter=1000, chains=4)
+# we want to save fit2 if possible
 
-# diagnose
-print(fit2)
-
-# plot
-params <- extract(fit2)
-hist(params$theta)
-hist(params$lambda) # mean(params$lambda) should be approximately = mean(y[y>0])
+# assess model fit
 launch_shinystan(fit2)
