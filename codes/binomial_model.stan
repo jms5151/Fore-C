@@ -1,7 +1,7 @@
 data { 
   int N;                              // number of sites
-  vector[N] C;                        // number of colonies per site
-  vector[N] Y;                        // number of diseased colonies per site
+  int C[N];                           // number of colonies per site
+  int Y[N];                           // number of diseased colonies per site
   int M;                              // number of predictor variables
   matrix[M,N] X;                      // number of predictor variables by site
   // int N_new;                          // number of new sites
@@ -12,7 +12,7 @@ data {
 parameters { 
   vector[M] beta;                     // vector of predictor variable coefficients
   real b0;                            // intercept
-  vector<lower=0, upper=1> p;         // prevalence
+  real<lower=0, upper=1> p[N];         // prevalence
   real<lower=0> sig_p;                // standard deviation of prevalence
 } 
 
@@ -22,23 +22,24 @@ model {
   }
 
   sig_p ~ normal(0,5);                // prior for standard deviation of prevalence
-
   for (n in 1:N){
     real mu = X[,n]' * beta + b0;     // mean prevalence is a function of predictor variables and intercept, redefined for each site
-    logit(p[n]) ~ normal(mu, sig_p);  // prevalence is normally distributed with mean and standard deviation
-    Y[n] ~ binomial(C[n], p[n]);      // the number of diseased colonies is binomially distributed given the number of colonies and prevalence probability
+    Y[n] ~ binomial_logit(C[n], mu);  // the number of diseased colonies is binomially distributed given the number of colonies and prevalence probability
+    // logit(p[n]) ~ normal(mu, sig_p);  // prevalence is normally distributed with mean and standard deviation
+    // Y[n] ~ binomial(C[n], p[n]);      
   }
 } 
 
 generated quantities { 
   // posterior predictive checks
-  vector[N] mu_ppc;                   // vector of mean prevalence values by site 
   vector[N] p_ppc;                    // vector of realizations of prevalence values by site 
-  vector[N] Y_ppc;                    // vector of number of diseased colonies per site 
+  int Y_ppc[N];                    // vector of number of diseased colonies per site 
 
   for (n in 1:N){
-    real mu = X[,n]' * beta + b0;                   // mean prevalence is a function of predictor variables and intercept, redefined for each site
-    logit(p_ppc[n]) ~ normal_rng(mu_ppc[n], sig_p); // prevalence is normally distributed with mean and standard deviation
+    real mu_ppc = X[,n]' * beta + b0; 
+    p_ppc[n] = logit(mu_ppc);
+    Y_ppc[n] = binomial_rng(C[n], p_ppc[n]);  // mean prevalence is a function of predictor variables and intercept, redefined for each site
+    // logit(p_ppc[n]) ~ normal_rng(mu_ppc[n], sig_p); // prevalence is normally distributed with mean and standard deviation
     // Y_ppc[n] ~ binomial_rng(C[n], p_ppc[n]);        // the number of diseased colonies is binomially distributed given the number of colonies and prevalence probability
   }
   
