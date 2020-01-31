@@ -7,29 +7,22 @@ data {
 } 
 
 parameters { 
-  real constant;
-  real T0;
-  real Tm;
-  real sigma;
+  real<lower=0, upper=1> constant;
+  real<lower=0> T0;
+  real<lower=0> Tm;
+  real<lower=0> sigma;
 } 
 
 model { 
   // priors
     constant ~ uniform(0,1);
-    T0 ~ uniform(0,24);
+    T0 ~ uniform(1,24);
     Tm ~ uniform(25,45);
-    sigma ~ gamma(2,0);
-  }  
+    sigma ~ inv_gamma(0.1,0.1); //uniform(0,1000)
+    
   // model; https://mc-stan.org/docs/2_21/functions-reference/logical-functions.html
   for(i in 1:N){                  // Briere equation: c*x*(x-T0)*sqrt(Tm-x)
-    real mu[i] = constant * temp[i] * (temp[i] - T0) * sqrt((Tm - temp[i]) * int operator>(real Tm, real temp[i])) * int operator<(real T0, real temp[i]);
-    LHT[i] ~ normal(mu[i], sigma);
-    }
+    real mu = constant * temp[i] * (temp[i] - T0) * sqrt((Tm - temp[i]) * (Tm < temp[i])) * (T0 > temp[i]);
+    LHT[i] ~ normal(mu, sigma);
+  }
 }
-
-// generated quantities {
-//     for(i in 1:N_new){
-//     real mu_new[i] = -1 * constant * (tempNew[i] - T0) * (tempNew[i] - Tm) * (Tm > tempNew[i]) * (T0 < tempNew[i])
-//     LHT_new[i] ~ normal(mu_new[i], sigma);
-//     }
-// }
