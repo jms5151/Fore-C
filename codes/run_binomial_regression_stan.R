@@ -5,7 +5,23 @@ library(boot)
 
 options(mc.cores=4)
 
-# simulate data
+# load real data ----------
+load("merged_data_tls.R")
+N <- nrow(tls)
+C <- tls$C
+Y <- tls$Y
+X <- tls$HotSnap
+M <- 1 # dimensions of x (# driver vars)
+
+# p <- tls$p
+# par(mfrow=c(2,2))
+# plot(X,p, pch=16, xlab="Temperature", ylab="Prevalence")
+# title("actual data")
+# plot(X,mu, pch=16, xlab="Temperature")
+# plot(p,Y, pch=16, xlab="Prevalence", ylab="# diseased colonies")
+# plot(X,Y, pch=16, xlab="Temperature", ylab="# diseased colonies")
+
+# simulate data -----------
 N <- 100 # number of sites
 C <- round(runif(N, min=10, max=100)) # number of colonies on a transect
 X <- t(scale(rnorm(N,27,2))) # driver variable 1: temperature values at each transect
@@ -15,10 +31,14 @@ mu <- (X * b1 + b0) # generating function to describe logit prevalence
 p <- inv.logit(mu) # prevalence 
 M <- 1 # dimensions of x (# driver vars)
 Y <- rbinom(N,C,p) # number of diseased colonies on each transect
-# plot(X,p, pch=16)
-# plot(X,mu, pch=16)
-# plot(p,Y, pch=16)
-# plot(X,Y, pch=16)
+# plot simulated data -----
+# plot(X,p, pch=16, xlab="Temperature", ylab="Prevalence")
+# title("simulated data")
+# plot(X,mu, pch=16, xlab="Temperature")
+# plot(p,Y, pch=16, xlab="Prevalence", ylab="# diseased colonies")
+# plot(X,Y, pch=16, xlab="Temperature", ylab="# diseased colonies")
+
+# new data to generate -----
 N_new <- 1000
 X_new <- t(seq(from=min(X), to=max(X), length=N_new))
 
