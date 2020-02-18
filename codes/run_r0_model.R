@@ -134,13 +134,23 @@ R0Quantiles<-colQuantiles(list_of_draws$R0)
 
 # plot
 source("C:/Users/Jamie/Box Sync/R_functions/mtexti.R")
+sst$RegionColor <- "deeppink4"
+sst$RegionColor[sst$Region=="MARIAN"] <- "deepskyblue"
+sst$RegionColor[sst$Region=="PRIAs"] <- "darkslategray2"
+sst$RegionColor[sst$Region=="SAMOA"] <- "darkviolet"
+
 par(mar = c(5.1, 4.1, 4.1, 5.1))
-plot(T_new, R0Means, type='l', lwd=2, ylab='Transmission suitability', xlab=expression(paste("Temperature (",degree,"C)")), yaxt='n')
+plot(T_new, R0Means, type='l', lwd=2, ylab='Transmission suitability', xlab=expression(paste("Temperature (",degree,"C)")), yaxt='n', xlim=c(21,36))
 lines(T_new, R0Quantiles[,2], lty=2, col='red')
 lines(T_new, R0Quantiles[,4], lty=2, col='red')
 axis(side=2, las=2, at=c(-0.6,-0.4,-0.2,0.0), labels=c(0.2,0.4,0.6,0.8))
 par(new = T)
 sst$jittered_p <- jitter(sst$p)
-plot(round(sst$SST, 1), sst$jittered_p, pch=16, yaxt='n', xaxt='n', ylab='', xlab='')
+plot(round(sst$SST, 1), sst$jittered_p, col='black', bg=sst$RegionColor, pch=21, yaxt='n', xaxt='n', ylab='', xlab='', xlim=c(21,36), ylim=c(0,0.25))
 axis(side=4, las=2)
 mtexti(side=4, "Prevalence")
+legend("topright", legend=c("Hawaii", "Marianas", "PRIAs", "Am. Samoa"),
+       text.col = c("deeppink4", "deepskyblue", "darkslategray2", "darkviolet"),
+       pch = c(21,21,21,21), pt.bg=c("deeppink4", "deepskyblue", "darkslategray2", "darkviolet"), 
+       col=c("black", "black", "black", "black"),
+       bty='n', cex=1.2)
