@@ -26,6 +26,6 @@ pp_check(fit_hurdGam, type = "scatter_avg", nsamples = 100)
 pp_check(fit_hurdGam, type = "stat_2d")
 
 # predict
-forecast <- posterior_predict(fit_hurdGam, df)
+forecast <- posterior_predict(fit_hurdGam, df) # matrix of 4000 rows by 500 columns
 plot(forecast)
 mean(forecast)

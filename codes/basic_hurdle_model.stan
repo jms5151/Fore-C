@@ -1,4 +1,4 @@
-// this function counts the number of non-zero (nz) numbers in data
+// this creates a function called num_zero, which counts the number of non-zero (nz) numbers in an integer vector (y)
 functions {
   int num_zero(int[] y) {
     int nz = 0;
