@@ -6,28 +6,26 @@ library(boot)
 # simulate data ----------------------------------------------------------------
 # simulate growth rate data
 T_gr <- seq(11, 36, 1)
-GR <- rnorm(length(T_gr), (0.03 * T_gr * (T_gr - 10) * sqrt(37 - T_gr)), 4)
-GR[GR<0] <- 0
+GR <- rnorm(length(T_gr), (0.03 * T_gr * (T_gr - 10) * sqrt(37 - T_gr)), 4) # daily rate
+# GR <- rnorm(length(T_gr), (0.007 * T_gr * (T_gr - 10) * sqrt(37 - T_gr)), 1) # hourly rate
 N_gr <- length(T_gr)
 plot(T_gr, GR, pch=16)
 
 # simulate infection probability data
 T_ip <- seq(20, 37, 1)
-IP <- rnorm(length(T_ip), (0.07 * T_ip * (T_ip - 23) * sqrt(37 - T_ip)), 5) 
-IP <- IP/max(IP)
+IP <- rnorm(length(T_ip), (0.007 * T_ip * (T_ip - 23) * sqrt(37 - T_ip)), 1)
+IP <- (IP-min(IP))/(max(IP)-min(IP)) # scale between 0 and 1
 N_ip <- length(T_ip)
 plot(T_ip, IP, pch=16)
 
 # simulate recovery rate (infectious period) data
 T_r <- seq(11, 35, 1)
-# T_r <- seq(13, 32, 2)
 Recovery <- rnorm(length(T_r), (T_r * -0.3 + 11), 1) 
-# Recovery <- Recovery + abs(min(Recovery))
 N_r <- length(T_r)
 plot(T_r, Recovery, pch=16)
 
 # generated temperatures
-T_new <- as.array(seq(15, 33, 0.1)) # temperature gradient to calculate derived quantities over
+T_new <- as.array(seq(18, 33, 0.1)) # temperature gradient to calculate derived quantities over
 N_new <-length(T_new)
 
 # real data -------------------------------------------------------------------
@@ -52,14 +50,14 @@ plot(T_ip, IP, pch=16)
 # infectious period (recovery rate) data
 recovery.df <- read.csv("Vcor/data/InfectiousPeriod.csv", head=T, stringsAsFactors=F)
 T_r <- recovery.df$Temperature
-Recovery <- recovery.df$Days - 10
-# Recovery <- scale(Recovery)
+Recovery <- recovery.df$Days
 N_r <- length(T_r)
 plot(T_r, Recovery, pch=16)
 
 # generated temperatures
 load("sst_tls.RData")
-T_new <- seq(min(sst$SST, na.rm=T)-3, max(sst$SST, na.rm=T)+7, 0.1)
+sst <- tls
+T_new <- seq(min(sst$sst, na.rm=T)-3, max(sst$sst, na.rm=T)+7, 0.1)
 N_new <-length(T_new)
 
 # run model -------------------------------------------------------------------
@@ -68,8 +66,8 @@ R0_mod <- stan_model('codes/R0_model.stan')
 
 # pass data to stan and run model
 init_fn <- function() {
-  list(constant_gr=0.05, T0_gr=8, Tm_gr=45, sigma_gr=0.03,
-       constant_ip=0.05, T0_ip=20, Tm_ip=45, sigma_ip=0.03)
+  list(constant_gr=0.005, T0_gr=8, Tm_gr=45, sigma_gr=0.3,
+       constant_ip=0.005, T0_ip=20, Tm_ip=45, sigma_ip=0.3)
 }
 
 R0_fit <- sampling(R0_mod, list(N_gr=N_gr, T_gr=T_gr, GR=GR, N_ip=N_ip, T_ip=T_ip, IP=IP
@@ -139,13 +137,13 @@ sst$RegionColor[sst$Region=="PRIAs"] <- "darkslategray2"
 sst$RegionColor[sst$Region=="SAMOA"] <- "darkviolet"
 
 par(mar = c(5.1, 4.1, 4.1, 5.1))
-plot(T_new, R0Means, type='l', lwd=2, ylab='Transmission suitability', xlab=expression(paste("Temperature (",degree,"C)")), yaxt='n', xlim=c(21,36))
+plot(T_new, R0Means, type='l', lwd=2, ylab='Transmission suitability', xlab=expression(paste("Temperature (",degree,"C)")), xlim=c(18,33), yaxt='n')
 lines(T_new, R0Quantiles[,2], lty=2, col='red')
 lines(T_new, R0Quantiles[,4], lty=2, col='red')
-axis(side=2, las=2, at=c(-0.6,-0.4,-0.2,0.0), labels=c(0.2,0.4,0.6,0.8))
+axis(side=2, las=2, at=c(-0.5,-0.2,0.1), labels=c(0.0,0.5,1.0))
 par(new = T)
 sst$jittered_p <- jitter(sst$p)
-plot(round(sst$SST, 1), sst$jittered_p, col='black', bg=sst$RegionColor, pch=21, yaxt='n', xaxt='n', ylab='', xlab='', xlim=c(21,36), ylim=c(0,0.25))
+plot(round(sst$sst, 1), sst$jittered_p, col='black', bg=sst$RegionColor, pch=21, yaxt='n', xaxt='n', ylab='', xlab='', xlim=c(18,33), ylim=c(0,1))
 axis(side=4, las=2)
 mtexti(side=4, "Prevalence")
 legend("topright", legend=c("Hawaii", "Marianas", "PRIAs", "Am. Samoa"),
