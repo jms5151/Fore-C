@@ -11,8 +11,8 @@ options(mc.cores=4)
 N <- 100 # number of sites
 C <- round(runif(N, min=10, max=100)) # number of colonies on a transect
 temp <- scale(rnorm(N,27,1)) # driver variable 1: temperature values at each transect
-chl <- scale(rnorm(N,0.14,0.08)) # driver variable 2: chl-a values at each transect
-dev <- scale(rnorm(N,18,10))
+chl <- scale(rnbinom(N, 0.14, 0.08)) # driver variable 2: chl-a values at each transect
+dev <- scale(rnbinom(N,0.18, 0.05)) # driver variable 3: development index (night time lights) at each transect
 X <- t(data.frame(temp, chl, dev))
 b0 <- -3 # intercept
 b1 <- 1 # slope (increase in log odds of disease per unit x)
