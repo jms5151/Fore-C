@@ -22,6 +22,7 @@ parameters {
 // }
 
 model { 
+  b0 ~ normal(0,10);                  // intercept prior
   for (m in 1:M){
     beta[m] ~ normal(0,10);           // priors for predictor variable coefficients
   }
