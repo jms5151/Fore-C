@@ -57,6 +57,14 @@ colnames(X_new) <- c("temp", "chl", "dev")
 X_new <- data.frame(t(X_new))
 N_new <- ncol(X_new)
 
+X_new_backtransformed <- as.data.frame(t(X_new))
+X_new_backtransformed$temp_new <- X_new_backtransformed$temp_new * attr(temp, 'scaled:scale') + attr(temp, 'scaled:center')
+X_new_backtransformed$chl_new <- X_new_backtransformed$chl_new * attr(chl, 'scaled:scale') + attr(chl, 'scaled:center')
+X_new_backtransformed$dev_new <- X_new_backtransformed$dev_new * attr(dev, 'scaled:scale') + attr(dev, 'scaled:center')
+X_new_backtransformed$index <- seq(1,nrow(X_new_backtransformed),1)
+X_new_backtransformed$index <- paste0("V", X_new_backtransformed$index)
+save(X_new_backtransformed, file="Compiled_data/ga_condition_index.RData")
+
 # compile model
 binomMod <- stan_model('codes/binomial_model.stan')
 
@@ -73,17 +81,31 @@ list_of_draws <- extract(fit2)
 Y_ppc_vals <- colMeans(list_of_draws$Y_ppc)
 # betas & b0 are vectors (with length equal to the number of post-warmup iterations times the number of chains)
 # theta will be a matrix, with each column corresponding to one of N number of sites
-ga <- data.frame(cbind(list_of_draws$beta[,1], list_of_draws$beta[,2], list_of_draws$beta[,3], list_of_draws$b0, colMeans(list_of_draws$theta), colMeans(list_of_draws$theta_new)))
-colnames(ga) <- c("b1", "b2", "b3", "b0", "theta", "theta_new") 
+ga <- data.frame(cbind(list_of_draws$beta[,1], list_of_draws$beta[,2], list_of_draws$beta[,3], list_of_draws$b0))
+colnames(ga) <- c("b1", "b2", "b3", "b0") 
+mu <- as.data.frame(list_of_draws$theta)
+
+# save prevalence data
+# prevalence <- as.data.frame(colMeans(list_of_draws$theta_new))
+# colnames(prevalence) <- "Prevalence" 
+# prevalence$index <- seq(1,nrow(prevalence),1)
+# prevalence$index <- paste0("V", prevalence$index)
+# save(prevalence, file="Compiled_data/prevalence_samples.RData")
+
 prevalence <- as.data.frame(list_of_draws$theta_new)
+colnames(prevalence) <- seq(1,ncol(prevalence),1) 
+colnames(prevalence) <- paste0("V", colnames(prevalence)) 
+prevalence <- prevalence %>% gather()
+colnames(prevalence) <- c("index", "Prevalence")
+save(prevalence, file="Compiled_data/prevalence_samples.RData")
 
 # plots
 plot(Y_ppc_vals, Y, pch=16, xlab='Predicted number of diseased colonies (Y_ppc)', ylab="Observed number of diseased colonies (Y)")
 
-plot(X[1,], colMeans(list_of_draws$theta), pch=16, xlab='MMM SST', ylab='mu')
-plot(X[2,], colMeans(list_of_draws$theta), pch=16, xlab='MMM Chl-a', ylab='mu', xlim=c(-1,5))
-plot(X[3,], colMeans(list_of_draws$theta), pch=16, xlab='Development (Night lights)', ylab='mu')
-plot(merged_ga$p, colMeans(list_of_draws$theta), pch=16, xlab='observed prevalence', ylab='mu')
+plot(X[1,], colMeans(mu), pch=16, xlab='MMM SST', ylab='mu')
+plot(X[2,], colMeans(mu), pch=16, xlab='MMM Chl-a', ylab='mu', xlim=c(-1,5))
+plot(X[3,], colMeans(mu), pch=16, xlab='Development (Night lights)', ylab='mu')
+plot(merged_ga$p, colMeans(mu), pch=16, xlab='observed prevalence', ylab='mu')
 
 # stan_plot(fit2, pars=c("b0", "beta[1]", "beta[2]", "beta[3]"))
 stan_plot(fit2, pars=c("beta[1]", "beta[2]", "beta[3]")) + 
