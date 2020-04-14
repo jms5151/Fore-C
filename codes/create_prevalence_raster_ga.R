@@ -40,8 +40,17 @@ grid$temp_new <- sst$SST_MMM[nearTable$nn.idx]
 nearTable <- as.data.frame(nn2(data = subset(X_new_backtransformed, select = c(temp_new, chl_new, dev_new)), query = subset(grid, select = c(temp_new, chl_new, dev_new)), k = 1))
 grid$index <- X_new_backtransformed$index[nearTable$nn.idx]
 
-# add prevalence values based on current conditions
-grid_filled_ga <- merge(grid, prevalence, by="index", all.x=T)
+# save nowcast full posterior distribution of current risk for comparison with long term risk
+ga_nowcast_risk <- merge(grid, prevalence, by="index")
+ga_nowcast_risk <- ga_nowcast_risk[,c("Region", "Prevalence")]
+ga_nowcast_risk$Disease_type <- "GA"
+ga_nowcast_risk$Risk <- "Nowcast"
+fileName <- paste0("Compiled_data/nowcasts/csv/ga_nowcast_risk_", substr(Sys.time(),1,10), ".RData")
+save(ga_nowcast_risk, file=fileName)
+
+# add mean prevalence values based on current conditions to visualize
+prevalence2 <- prevalence %>% group_by(index) %>% summarize (Prevalence = mean(Prevalence))
+grid_filled_ga <- merge(grid, prevalence2, by="index", all.x=T)
 
 # subset data for raster
 grid_filled_ga <- grid_filled_ga[,c("Longitude", "Latitude", "Prevalence")]
@@ -53,5 +62,5 @@ grid_filled_ga <- rasterFromXYZ(grid_filled_ga)
 crs(grid_filled_ga) <- CRS("+init=epsg:4326")
 
 # save data
-fileName <- paste0("Compiled_data/nowcasts/ga_", substr(Sys.time(),1,10), ".tif")
+fileName <- paste0("Compiled_data/nowcasts/raster/ga_", substr(Sys.time(),1,10), ".tif")
 writeRaster(grid_filled_ga, file=fileName)
