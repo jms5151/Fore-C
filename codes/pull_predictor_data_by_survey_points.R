@@ -49,6 +49,10 @@ nearTable <- as.data.frame(nn2(data = subset(nightLights_df, select = c(Longitud
 merged_ga$NightLights <- nightLights_df$BlackMarble_2016_3km_geo[nearTable$nn.idx]
 merged_ga$NightLights_dist <- nearTable$nn.dists
 
+# remove survey with chl-a outlier
+merged_ga$CHL_MMM[merged_ga$CHL_MMM > 4] <- NA
+merged_ga <- merged_ga[complete.cases(merged_ga),]
+
 # save data
 save(merged_ga, file="compiled_data/GA_w_predictor_data.RData")
 
