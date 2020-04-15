@@ -8,10 +8,14 @@ library(ggridges)
 library(ggplot2)
 library(leaflet)
 library(raster)
+# library(shinydashboard)
+library(flexdashboard)
+library(tidyverse)
 
 ### addPopupGraphs
 
 # load data
+load("Compiled_data/observational_data.RData")
 load("Compiled_data/historical_surveys.RData")
 load("Compiled_data/number_surveys.RData")
 load("Compiled_data/long_term_risk.RData")
@@ -23,10 +27,13 @@ ga_nowcast <- raster(fileName)
 fileName2 <- paste0("Compiled_data/nowcasts/csv/", max(list.files("Compiled_data/nowcasts/csv/")))
 load(fileName2)
 
-risk <- rbind(long_term_risk, ga_nowcast_risk)
-  
-lastUpdate <- substr(max(list.files("Compiled_data/nowcasts/csv/")), 17, 26)
+nowcast_median_risk <- ga_nowcast_risk %>% group_by(Disease_type) %>% summarize(median_risk = round(median(Prevalence)*100,1))
 
+risk <- rbind(observations[,c("Region", "Prevalence", "Disease_type", "Risk")], ga_nowcast_risk)
+# long_term_risk <- long_term_risk[,c(1,3:5)]
+# risk <- rbind(long_term_risk, ga_nowcast_risk)
+
+lastUpdate <- substr(max(list.files("Compiled_data/nowcasts/csv/")), 17, 26)
 
 shinyApp(
   ui = navbarPage(theme = shinytheme("superhero"), title="Fore-C", collapsible = TRUE, id="nav",
@@ -36,10 +43,18 @@ shinyApp(
                                                                     "White syndrome" = 2,
                                                                     "Black band disease" = 3),
                            selected = 1),
-                           textOutput("update")),
-                  mainPanel(leafletOutput("mymap"),
+                           hr(),
+                           h3("Current risk:"),
+                           gaugeOutput("ga_gauge"),
+                           hr(),
+                           textOutput("update")
+                           ),
+                           mainPanel(
+                            leafletOutput("mymap"),
                             br(),
-                            plotOutput("densityplot"))
+                            plotOutput("densityplot")
+                           )
+
                   ),
                   tabPanel("Four-month forecast",
                            sidebarPanel(radioButtons("forecast_radio", label = h3("Disease type"),
@@ -58,16 +73,24 @@ shinyApp(
                            mainPanel(leafletOutput("mymap3"))
                   ),
                   tabPanel("Historical data",
-                           sidebarPanel(radioButtons("historical_radio", label = h3("Disease type"),
-                                                     choices = list("Growth anomalies" = 1,
-                                                                    "White syndrome" = 2,
-                                                                    "Black band disease" = 3),
-                                                     selected = 1)),
-                           mainPanel(leafletOutput("mymap4"),
-                                     br(),
-                                     plotOutput("numSurveysplot"))
-                  ),
+                           leafletOutput("mymap4")),
                   tabPanel("Download report"),
+                  tabPanel("Models",
+                           tabsetPanel(type = "tabs",
+                                       tabPanel("Equations",
+                                                # (textOutput("Growth anomalies:")),
+                                                # br(),
+                                                (withMathJax("$$Y \\sim\\ Binomial(C,\\mu)$$")),
+                                                br(),
+                                                # P{n \\choose k}
+                                                (withMathJax("$$\\mu=\\beta_0+(\\beta_{Temp}*X_{Temp})
+                                                             +(\\beta_{Chl}*X_{Chl})
+                                                             +(\\beta_{Dev}*X_{Dev})$$"))),
+                                       tabPanel("Coefficients"),
+                                       tabPanel("Sensitivity"),
+                                       tabPanel("Accuracy"),
+                                       tabPanel("Forecasts")
+                           )),
                   tabPanel("About")
   ),
   server = function(input, output) { 
@@ -80,6 +103,12 @@ shinyApp(
       subset(models, County == input$countyInput[1] & Category == "Normal")
     })  
     
+    output$ga_gauge <- renderGauge({
+       gauge(nowcast_median_risk$median_risk[1], min = 0, max = 100, symbol = '%', gaugeSectors(
+        success = c(0, 20), warning = c(21, 50), danger = c(51, 100)
+      ))
+    })
+    
     output$mymap <- renderLeaflet({
       basemap %>%
         addRasterImage(ga_nowcast, colors = "Spectral", opacity = 0.6) %>%
@@ -87,8 +116,6 @@ shinyApp(
     })
     
     output$update <- renderText({paste0("Last update: ", lastUpdate)})
-    
-
     
     output$densityplot <- renderPlot({
       if(input$historical_radio==1){
@@ -100,7 +127,7 @@ shinyApp(
       if(input$historical_radio==3){
         x <- "BBD"
       }
-      hists <- reactive({ 
+      hists <- reactive({
         subset(risk, Disease_type == x)
     })
       ggplot(hists(), aes(y = Region)) +
@@ -125,9 +152,11 @@ shinyApp(
     output$mymap4 <- renderLeaflet({
       leaflet() %>% 
         addTiles(urlTemplate="http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}") %>%
-        addCircleMarkers(data=historical_data, lat = ~Latitude, lng = ~Longitude, radius = ~sqrt(N), color = ~'white', popup = ~survey_text) %>%
+        addCircleMarkers(data=historical_data, lat = ~Latitude, lng = ~Longitude, radius = ~sqrt(N)
+                         , color = ~'white', popup = ~survey_text
+                         , clusterOptions = markerClusterOptions()) %>%
         addScaleBar() %>%
-        setView(lng=-180, lat=16.4502 , zoom=2)
+        setView(lng=-180, lat=16.4502 , zoom=3)
     })
     
     output$numSurveysplot <- renderPlot({    
@@ -154,12 +183,15 @@ shinyApp(
   }
 )
 
-
-
+# https://stackoverflow.com/questions/31814037/integrating-time-series-graphs-and-leaflet-maps-using-r-shiny
+# https://stackoverflow.com/questions/48781380/shiny-how-to-highlight-an-object-on-a-leaflet-map-when-selecting-a-record-in-a
+# https://rstudio.github.io/shinydashboard/structure.html
+# https://www.r-bloggers.com/4-tricks-for-working-with-r-leaflet-and-shiny/
 # https://vac-lshtm.shinyapps.io/ncov_tracker/
 # https://github.com/eparker12/nCoV_tracker/blob/master/app.R
 # https://github.com/HeatherWelch/ETBF_bycatch_NatCon/blob/master/ETBF_bycatch_app/app.R
 # https://coronavirus.jhu.edu/map.html
+# https://mapspbgjam1.env.duke.edu/communities/
 
 
 # https://rstudio.github.io/leaflet/shiny.html
