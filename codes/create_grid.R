@@ -1,24 +1,13 @@
 # create grid for fore-c map based on CRW virtual station pixels ---------------------
 rm(list=ls()) #remove previous variable assignments
 
-# libraries
-library(raster)
+# load file
+grid <- read.csv("Data/mask5km.csv", head=F)
 
-# Open the NC file as a raster brick 
-thermHistBrick <- brick("Data/noaa_crw_thermal_history_sst_trend_v2.1.nc", varname="mask")
-
-# Turn the brick into a points file
-reefMaskPts <- as.data.frame(rasterToPoints(x = thermHistBrick[[1]]))
-
-# Change the names of the columns
-colnames(reefMaskPts) <- c("Longitude", "Latitude", "ReefMask")
-
-# Only keep the points equal to 1
-reefMaskPts <- subset(reefMaskPts, ReefMask == 1)
-
-# remove ReefMask column
-grid <- reefMaskPts[,c("Longitude", "Latitude")]
-
+# format file
+grid <- grid[,c("V3", "V4")]
+colnames(grid) <- c("Latitude", "Longitude")
+  
 # add region name for regions of interest 
 grid$Region <- NA
 grid$Region[grid$Longitude > 140.5 & grid$Longitude < 146.5 & grid$Latitude > -12.1 & grid$Latitude < -9] <- "GBR"
