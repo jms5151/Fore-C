@@ -1,13 +1,32 @@
 # create grid for fore-c map based on CRW virtual station pixels ---------------------
 rm(list=ls()) #remove previous variable assignments
 
-# load file
-grid <- read.csv("Data/mask5km.csv", head=F)
+# load libraries
+library(caTools)
+library(reshape2)
 
-# format file
-grid <- grid[,c("V3", "V4")]
-colnames(grid) <- c("Latitude", "Longitude")
-  
+# load file
+grid <- read.gif("Data/reefMask.GIF")
+
+# extract grid from gif
+grid <- grid[[1]]
+
+# set column and rows ids into longitude and latitude coordinates 
+colnames(grid) <- seq(-179.975, 179.975, by=0.05)
+rownames(grid) <- seq(89.975, -89.975, by=-0.05) # or -89.975
+
+# format from matrix to long data frame
+grid <- melt(as.matrix(x))
+
+# subset reef mask pixels
+grid <- subset(grid, value == 0)
+
+# remove value column
+grid <- grid[,c("Var2", "Var1")]
+
+# rename columns
+colnames(grid) <- c("Longitude", "Latitude")
+
 # add region name for regions of interest 
 grid$Region <- NA
 grid$Region[grid$Longitude > 140.5 & grid$Longitude < 146.5 & grid$Latitude > -12.1 & grid$Latitude < -9] <- "GBR"
