@@ -15,7 +15,6 @@ library(tidyverse)
 load("Compiled_data/observational_data.RData")
 load("Compiled_data/historical_surveys.RData")
 load("Compiled_data/number_surveys.RData")
-load("Compiled_data/long_term_risk.RData")
 source("codes/addScaleBar.R")
 
 # load nowcasts
@@ -135,49 +134,49 @@ shinyApp(
   
   server = function(input, output) { 
   
-    # basemap = leaflet() %>%
-    #   addTiles() %>%
-    #   addScaleBar()
-    # 
-    # output$mymap <- renderLeaflet({
-    #   if(input$nowcast_radio == 1){
-    #         x <- grid_filled_total
-    #       }
-    #       if(input$nowcast_radio == 2){
-    #         x <- grid_filled_bbd
-    #       }
-    #       if(input$nowcast_radio == 3){
-    #         x <- grid_filled_ga
-    #       }
-    #       if(input$nowcast_radio == 4){
-    #         x <- grid_filled_ws
-    #       }
-    #   basemap %>%
-    #     addRasterImage(x, colors = "Spectral", opacity = 0.6) %>%
-    #     setView(lng = 180, lat = 16.4502 , zoom = 2)
-    # })
-    # 
-    # output$update <- renderText({paste0("Last update: ", lastUpdate)})
-    # 
-    # output$mymap2 <- renderLeaflet({
-    #   basemap %>%
-    #     setView(lng = 144.7875, lat = 13.4502 , zoom = 8)
-    # })
-    # 
-    # output$mymap3 <- renderLeaflet({
-    #   basemap %>%
-    #     setView(lng = 144.7875, lat = 13.4502 , zoom = 8)
-    # })
-    # 
-    # output$mymap4 <- renderLeaflet({
-    #   basemap %>%
-    #     setView(lng = 144.7875, lat = 13.4502 , zoom = 8)
-    # })
-    # 
-    # output$mymap5 <- renderLeaflet({
-    #   basemap %>%
-    #     setView(lng = 144.7875, lat = 13.4502 , zoom = 8)
-    # })
+    basemap = leaflet() %>%
+      addTiles() %>%
+      addScaleBar()
+
+    output$mymap <- renderLeaflet({
+      if(input$nowcast_radio == 1){
+            x <- grid_filled_total
+          }
+          if(input$nowcast_radio == 2){
+            x <- grid_filled_bbd
+          }
+          if(input$nowcast_radio == 3){
+            x <- grid_filled_ga
+          }
+          if(input$nowcast_radio == 4){
+            x <- grid_filled_ws
+          }
+      basemap %>%
+        addRasterImage(x, colors = "Spectral", opacity = 0.6) %>%
+        setView(lng = 180, lat = 16.4502 , zoom = 2)
+    })
+
+    output$update <- renderText({paste0("Last update: ", lastUpdate)})
+
+    output$mymap2 <- renderLeaflet({
+      basemap %>%
+        setView(lng = 144.7875, lat = 13.4502 , zoom = 8)
+    })
+
+    output$mymap3 <- renderLeaflet({
+      basemap %>%
+        setView(lng = 144.7875, lat = 13.4502 , zoom = 8)
+    })
+
+    output$mymap4 <- renderLeaflet({
+      basemap %>%
+        setView(lng = 144.7875, lat = 13.4502 , zoom = 8)
+    })
+
+    output$mymap5 <- renderLeaflet({
+      basemap %>%
+        setView(lng = 144.7875, lat = 13.4502 , zoom = 8)
+    })
 
     output$mymap6 <- renderLeaflet({
       leaflet() %>%
