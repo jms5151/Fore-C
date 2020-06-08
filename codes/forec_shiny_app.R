@@ -38,8 +38,8 @@ shinyApp(
                            hr(),
                            selectInput("select_forecast", label = h3("Select forecast"),
                                        choices = c("Nowcast",
-                                                   "4-week forecast", 
-                                                   "8-week forecast", 
+                                                   "4-week forecast",
+                                                   "8-week forecast",
                                                    "12-week forecast"),
                                        selected = "Nowcast"),
                            hr(),
@@ -140,16 +140,16 @@ shinyApp(
 
     output$mymap <- renderLeaflet({
       if(input$nowcast_radio == 1){
-            x <- grid_filled_total
+            x <- total_nowcast
           }
           if(input$nowcast_radio == 2){
-            x <- grid_filled_bbd
+            x <- bbd_nowcast
           }
           if(input$nowcast_radio == 3){
-            x <- grid_filled_ga
+            x <- ga_nowcast
           }
           if(input$nowcast_radio == 4){
-            x <- grid_filled_ws
+            x <- ws_nowcast
           }
       basemap %>%
         addRasterImage(x, colors = "Spectral", opacity = 0.6) %>%
