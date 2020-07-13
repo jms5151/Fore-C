@@ -72,6 +72,10 @@ for (j in 1:length(dateRange)){
       x <- as.data.frame(expand.grid("lon"=lons, "lat"=lats))
       if (nrow(x)!=0){
         # calculate distance to each nearby pixel
+        ###---------------------------------------------------------------------------
+        ### nn2 function: data = data points from surveys, query = SST dataset !!!!
+        ### may want to update this code
+        ###---------------------------------------------------------------------------
         nearTable <- as.data.frame(nn2(data = SP_survey, query = x, k = 1))
         nearTable <- cbind(nearTable, x)
         nearTable <- nearTable[order(nearTable$nn.dists),]

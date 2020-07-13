@@ -3,9 +3,8 @@ rm(list=ls()) #remove previous variable assignments
 
 # load libraries
 library(RANN)
-# library(sp)
-# library(rgdal)
 library(raster)
+library(tidyverse)
 
 # load data
 load("Compiled_data/grid.RData") # need 5km x 5km equally spaced grid, and then island mask
@@ -62,5 +61,5 @@ grid_filled_ga <- rasterFromXYZ(grid_filled_ga)
 crs(grid_filled_ga) <- CRS("+init=epsg:4326")
 
 # save data
-fileName <- paste0("Compiled_data/nowcasts/raster/ga_", substr(Sys.time(),1,10), ".tif")
+fileName <- paste0("Compiled_data/nowcasts/raster/", substr(Sys.time(),1,10), "_ga.tif")
 writeRaster(grid_filled_ga, file=fileName)
