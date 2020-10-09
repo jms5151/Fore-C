@@ -11,14 +11,14 @@ stan_gamma_model_data <-
     N_gamma = nrow(recovery),
     T_gamma = recovery$Tank_temperature, 
     gamma = recovery$Time_to_infection,
-    T_new = seq(15,37,1),
-    N_new = length(seq(15,37,1))
+    T_new = seq(21,33,0.01),
+    N_new = length(seq(21,33,0.01))
   )
 
 stan_gamma_model_fit <- sampling(
   stan_model("codes/gamma.stan"),
   data = stan_gamma_model_data,
-  iter = 10000
+  iter = 1000
 )
 
 # save and open stanfit object
@@ -34,14 +34,13 @@ bayesplot::mcmc_areas(as.matrix(stan_gamma_model_fit), pars = c("shape_gamma","s
 list_of_draws <- rstan::extract(stan_gamma_model_fit)
 # print(names(list_of_draws))
 
-GammaSamples <- data.frame(list_of_draws$gamma_ppc)
+GammaSamples <- data.frame(list_of_draws$gamma_new)
 GammaMeans<-colMeans(GammaSamples)
-GammaQuantiles<-colQuantiles(list_of_draws$gamma_ppc, probs = c(0.05, 0.95))
+GammaQuantiles<-colQuantiles(list_of_draws$gamma_new, probs = c(0.05, 0.95))
 
 # plot model vs data
-# plot(stan_gamma_model_data[[2]], GammaMeans, type='l', lwd=2, ylab='Infectious period (days)', xlab=expression(paste("Temperature (",degree,"C)")))
-plot(stan_gamma_model_data[[2]], GammaMeans, type='l', lwd=2, ylab='Infectious period (days)', xlab=expression(paste("Temperature (",degree,"C)")), ylim=c(0,40))
-lines(stan_gamma_model_data[[2]], GammaQuantiles[,1], lty=2, col='red', ylim=c(0,40))
-lines(stan_gamma_model_data[[2]], GammaQuantiles[,2], lty=2, col='red', ylim=c(0,40))
+plot(stan_gamma_model_data[[4]], GammaMeans, type='l', lwd=2, ylab='Daily removal rate', xlab=expression(paste("Temperature (",degree,"C)")), ylim=c(0,40))
+lines(stan_gamma_model_data[[4]], GammaQuantiles[,1], lty=2, col='red', ylim=c(0,40))
+lines(stan_gamma_model_data[[4]], GammaQuantiles[,2], lty=2, col='red', ylim=c(0,40))
 points(stan_gamma_model_data[[2]], stan_gamma_model_data[[3]], pch=16, ylim=c(0,40))
 
