@@ -27,7 +27,7 @@ list_of_draws <- extract(linearFit)
 
 # plot recovery rate (infectious period) ------------
 RecoverySamples <- data.frame(list_of_draws$LHT_new)
-RecoveryMeans<-colMeans(RecoverySamples)
+RecoveryMeans <- colMeans(RecoverySamples)
 RecoveryQuantiles<-colQuantiles(list_of_draws$LHT_new)
 
 # plot
