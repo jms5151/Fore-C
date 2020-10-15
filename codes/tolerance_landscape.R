@@ -9,6 +9,10 @@
 
 strain_temp4 <- read.csv("Vcor/data/strain_temp4.csv")
 
+ta <- strain_temp4$Tank_temperature
+time <- strain_temp4$Time_to_infection
+
+
 tolerance.landscape <- function(ta,time){
   # ta = temperature
   # time = days
@@ -31,27 +35,27 @@ tolerance.landscape <- function(ta,time){
   # the length (# bins) differs by temperature
   time.interpol <- matrix(, 1001, length(ta))
   for(i in 1:length(ta)){	
-    time <- c(0,sort(data$time[data$ta == ta[i]])) # time 0 to max time to all infected/dead
-    p <- seq(0, 100, length.out = length(time)) # divide 0 - 100% survival by number of observations
+    time <- c(0,sort(data$time[data$ta == ta[i]])) # time 0 to max time to all infected/dead, equivalent
+    p <- seq(0, 100, length.out = length(time)) # divide 0 - 100% survival by number of observations, equivalent probability bins
     time.interpol[,i] <- approx(p, time, n = 1001)$y # empirical survival
     }			
   
   # Step 4: Overlap all survival curves into a single one by shifting each curve to mean x and y employing z
   # Step 5: Build expected survival curve with median survival time for each survival probability
   # scaling step size by sensitivity?
-  shift <- (10^(-(ta - ta.mn)/z)) # should it be -delta T or +delta T? Positive in original code
+  shift <- (10^((ta - ta.mn)/z)) 
   time.interpol.shift <- t(t(time.interpol)*shift)[-1,] # shift curves to be on top of each other at mean temp, remove first row of zeros
   surv.pred <- 10^apply(log10(time.interpol.shift), 1, median) # calculates the median time to infection
   # given each time increment (e.g., median of each row in time.interpol matrix) 
   
   # Step 6: Expand predicted survival curves to measured Ta (matrix m arranged from lower to higher ta)
   # Step 7: Obtain predicted values comparable to each empirical measurement
-  m <- surv.pred * matrix((10^((ta.mn - rep(ta, each = 1000))/z)), nrow = 1000)
+  m <- surv.pred * matrix((10^((ta.mn - rep(ta, each = 1000))/z)), nrow = 1000) # matrix is deviation from median temperature divided by sensitivity
   out <-0
   for(i in 1:length(ta)){
     time <- c(0,data$time[data$ta == ta[i]])
     p <- seq(0, 100, length.out = length(time))
-    out <- c(out, approx(seq(0, 100, length.out = 1000), m[,i], xout = p[-1])$y)
+    out <- c(out, approx(seq(0, 100, length.out = 1000), m[,i], xout = p[-1])$y) # predicted time to infection given temperature deviation from median temp curve
     }
   data$time.pred <- out[-1]
   colnames(m) <- paste("time.at", ta,sep = ".")
@@ -72,7 +76,8 @@ tolerance.landscape <- function(ta,time){
   # segments(max(data$time)*0.7,90,max(data$time)*0.8,90,lty=2)
   # text(max(data$time)*0.82,90,"fitted",adj=c(0,0.5))
   plot(log10(data$time.pred), log10(data$time), pch=21, bg="black", cex=0.5, lwd=0.7, las=1, xlab="Fitted Log10 time", ylab="Measured Log10 time")
-  abline(0, 1, lty=2)
+  abline(lm(log10(data$time) ~ log10(data$time.pred)), col = 'red') # regression line
+  abline(0, 1, lty=2) # unity line
   rsq <- round(summary(lm(log10(data$time) ~ log10(data$time.pred)))$r.square,3)
   text(min(log10(data$time.pred)), max(log10(data$time)), substitute("r"^2*" = "*rsq),adj=c(0,1))
   text(min(log10(data$time.pred)), max(log10(data$time)), paste0("CTMax = ", round(as.numeric(ctmax),2)),adj=c(0,4))
@@ -87,10 +92,10 @@ tolerance.landscape <- function(ta,time){
 t2 <- tolerance.landscape(strain_temp4$Tank_temperature, strain_temp4$Time_to_infection)
 
 # Function to estimate survival probability from tolerance landscapes and environmental temperature data
-#dynamic.landscape <- function(ta,tolerance.landscape){
-  surv <- tolerance.landscape$S[,2]
-  ta.mn <- tolerance.landscape$ta.mn
-  z <- tolerance.landscape$z
+dynamic.landscape <- function(ta,tolerance.landscape){
+  surv <- t2$S[,2]
+  ta.mn <- t2$ta.mn
+  z <- t2$z
   shift <- 10^((ta.mn - ta)/z)	
   time.rel <- 0
   alive <- 100
@@ -120,12 +125,13 @@ jamie.dynamic.landscape <- function(ta, tolerance.landscape){
   surv <- tolerance.landscape$S[,2]
   ta.mn <- tolerance.landscape$ta.mn
   z <- tolerance.landscape$z
-  shift <- 10^(-(ta.mn - ta)/z)	# added negative sign to delta T
+  shift <- 10^((ta.mn - ta)/z)	# added negative sign to delta T
   susceptible <- 0
   for(i in 1:length(ta)){
     apporox_suscept_day1 <- approx(c(0, shift[i]*surv),
                                    seq(100, 0, length.out = length(c(0, surv))),
                                    xout = 1)$y
+    # plot(c(0, shift[i]*surv), seq(100, 0, length.out = length(c(0, surv))))
     susceptible <- c(susceptible, 100-apporox_suscept_day1)
     }				
   out <- data.frame(cbind(ta=ta[1:(length(susceptible)-1)],time=(1:length(ta))[1:(length(susceptible)-1)],susceptible=susceptible[1:(length(susceptible)-1)]))
