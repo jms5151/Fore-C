@@ -93,9 +93,9 @@ t2 <- tolerance.landscape(strain_temp4$Tank_temperature, strain_temp4$Time_to_in
 
 # Function to estimate survival probability from tolerance landscapes and environmental temperature data
 dynamic.landscape <- function(ta,tolerance.landscape){
-  surv <- t2$S[,2]
-  ta.mn <- t2$ta.mn
-  z <- t2$z
+  surv <- tolerance.landscape$S[,2]
+  ta.mn <- tolerance.landscape$ta.mn
+  z <- tolerance.landscape$z
   shift <- 10^((ta.mn - ta)/z)	
   time.rel <- 0
   alive <- 100
@@ -152,7 +152,7 @@ library(zoo)
 
 thermal_accum_fun <- function(suscept_ts){
   suscept_time_series <- suscept_ts[[3]]
-  my_fun = function(x) { w = length(x):1; sum(x*exp(-x*w))} # FIXME 
+  my_fun = function(x) { w = length(x):1; sum(x/w)} # FIXME 
   rollapply(suscept_time_series, width=100, by=1, fill=NA, FUN=my_fun, by.column=FALSE, align="right")
 }
 
