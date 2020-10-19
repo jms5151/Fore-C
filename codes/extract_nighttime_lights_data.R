@@ -1,31 +1,63 @@
 # extract nasa night time lights values for coral regions ---------------------- 
-rm(list=ls()) #remove previous variable assignments
+# https://gist.github.com/giacfalk/33e78e64161ae532390052dc578d6197
 
-# load libraries
 library(raster)
+library(rhdf5)
 library(rgdal)
+library(maps)
 
-# load data
-nightLights <- raster("Data/BlackMarble_2016_3km_geo.tif")
+f = H5Fopen("data/VNP46A1.A2020288.h00v00.001.2020289062608.h5")
 
-# raster to data frame
-nightLights_df <- as.data.frame(nightLights, xy = TRUE)
+spInfo <- h5readAttributes(f,"/HDFEOS/GRIDS/VNP_Grid_DNB/") 
 
-# subset lat/lon to region of interest
-nightLights_df <- subset(nightLights_df, x <= -120 | x >= 140 & y <= 30 & y >= -30)
+myCrs<-4326
+res <- 2400
+xMin<-spInfo$WestBoundingCoord
+yMin<-spInfo$SouthBoundingCoord
+yMax<-spInfo$NorthBoundingCoord
+xMax<-spInfo$EastBoundingCoord
+nRows <- 2400
+nCols <- 2400
+myNoDataValue <- NA
 
-# rename columns
-colnames(nightLights_df) <- c("Longitude", "Latitude", "BlackMarble_2016_3km_geo")
+band2Raster <- function(file, noDataValue, xMin, yMin, res, crs){
+  # select the band you wish to export, here set to be the DNB_At_Sensor_Radiance_500m
+  out<- h5read(f,"/HDFEOS/GRIDS/VNP_Grid_DNB/Data Fields/DNB_At_Sensor_Radiance_500m",index=list(1:nCols,1:nRows))
+  
+  #transpose data to fix flipped row and column order 
+  #depending upon how your data are formatted you might not have to perform this
+  out <-t(out)
+  
+  #assign data ignore values to NA
+  out[out == myNoDataValue] <- NA
+  
+  #turn the out object into a raster
+  outr <- raster(out,crs=myCrs)
+  
+  #create extents class
+  rasExt  <- raster::extent(c(xMin,xMax,yMin,yMax))
+  
+  #assign the extents to the raster
+  extent(outr) <- rasExt
+  
+  #return the raster object
+  return(outr)
+}
+
+r = band2Raster(file = f, noDataValue = myNoDataValue, xMin = xMin, yMin = yMin, res = res, crs = myCrs)
+
+# save raster
+writeRaster(r, "Data/nightlights.tif")
 
 # save data
-save(nightLights_df, file="Compiled_data/Night_Lights.RData")
+# save(nightLights_df, file="Compiled_data/Night_Lights.RData")
 
 # visualize
-library(ggplot2)
-library(viridis)
-
-ggplot() +
-  geom_raster(data = x , aes(x = Longitude, y = Latitude, fill = BlackMarble_2016_3km_geo)) +
-  scale_fill_viridis_c() +
-  coord_quickmap() + 
-  scale_x_continuous(limits = c(-180, 180))
+# library(ggplot2)
+# library(viridis)
+# 
+# ggplot() +
+#   geom_raster(data = x , aes(x = Longitude, y = Latitude, fill = BlackMarble_2016_3km_geo)) +
+#   scale_fill_viridis_c() +
+#   coord_quickmap() + 
+#   scale_x_continuous(limits = c(-180, 180))
