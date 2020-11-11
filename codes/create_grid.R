@@ -1,6 +1,13 @@
 # create grid for fore-c map based on CRW virtual station pixels ---------------------
 rm(list=ls()) #remove previous variable assignments
 
+# create Hawaii grid from Ocean Tipping Points data
+OTP_grid <- raster("Data/hi_otp_all_osds_effluent.tif")
+OTP_grid_df <- as.data.frame(rasterToPoints(OTP_grid))
+OTP_grid_df <- OTP_grid_df[,1:2] # subset to X and Y
+colnames(OTP_grid_df) <- c("Longitude", "Latitude") # rename columns
+save(grid, file="Compiled_data/grid_OTP_HI.RData") # save grid
+
 # load libraries
 library(caTools)
 library(reshape2)
