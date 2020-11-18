@@ -170,12 +170,11 @@ vs_summary <- HI_grid %>%
     HostCover = mean(Porites_mean_cover),
     FishAbundance = mean(H_abund),
     Depth = mean(Porites_MeanDepth),
-    HotSnap = mean(Nowcast, na.rm = T),
-    # X4wkForecast = mean(X4wkForecast, na.rm = T),
-    # X8wkForecast = mean(X8wkForecast, na.rm = T),
-    # X12wkForecast = mean(X12wkForecast, na.rm = T)
-  ) #%>%
-  # gather(covariate, value, meanColSize:HotSnap)
+    Nowcast = mean(Nowcast, na.rm = T),
+    X4wkForecast = mean(X4wkForecast, na.rm = T),
+    X8wkForecast = mean(X8wkForecast, na.rm = T),
+    X12wkForecast = mean(X12wkForecast, na.rm = T)
+  ) 
 
 scenario_values <- c(seq(-50, -10, 10), 100, seq(10, 50, 10))
 scenario_df <- expand.grid("VS" = unique(vs_summary$VS),
@@ -187,26 +186,43 @@ scenario_df <- expand.grid("VS" = unique(vs_summary$VS),
 
 vs_summary_wide <- merge(vs_summary, scenario_df, by = "VS", all.y = T)
 
-delta_value <- function(df, colname){
-  df[, colname] + df[, paste0(colname, "_condition")]/100 * df[, colname]
+delta_value <- function(df, colname, colcondition){
+  df[, colname] + df[, colcondition]/100 * df[, colname]
 }
 
-vs_summary_wide$meanColSize <- delta_value(vs_summary_wide, "meanColSize")
-vs_summary_wide$HostCover <- delta_value(vs_summary_wide, "HostCover")
-vs_summary_wide$FishAbundance <- delta_value(vs_summary_wide, "FishAbundance")
-vs_summary_wide$Depth <- delta_value(vs_summary_wide, "Depth")
-vs_summary_wide$HotSnap <- delta_value(vs_summary_wide, "HotSnap")
+vs_summary_wide$meanColSize <- delta_value(vs_summary_wide, "meanColSize", "meanColSize_condition")
+vs_summary_wide$HostCover <- delta_value(vs_summary_wide, "HostCover", "HostCover_condition")
+vs_summary_wide$FishAbundance <- delta_value(vs_summary_wide, "FishAbundance", "FishAbundance_condition")
+vs_summary_wide$Depth <- delta_value(vs_summary_wide, "Depth", "Depth_condition")
+vs_summary_wide$Nowcast <- delta_value(vs_summary_wide, "Nowcast", "HotSnap_condition")
+vs_summary_wide$X4wkForecast <- delta_value(vs_summary_wide, "X4wkForecast", "HotSnap_condition")
+vs_summary_wide$X8wkForecast <- delta_value(vs_summary_wide, "X8wkForecast", "HotSnap_condition")
+vs_summary_wide$X12wkForecast <- delta_value(vs_summary_wide, "X12wkForecast", "HotSnap_condition")
 
 vs_summary_wide[vs_summary_wide == 100] <- 0
 
-# vs_scenarios <- castPred(vs_summary_wide, "HotSnap")
+# Get estimates from lookup table
+castScenarios <- function(gridData, HS_name, castName){
+  gridData[, "HotSnap"] = gridData[, HS_name]
+  gridData <- gridData[complete.cases(gridData),]
+  nearTable <- as.data.frame(nn2(data = subset(lookupTable, select = c(meanColSize, HostCover, FishAbundance, Depth, HotSnap)), 
+                                 query = subset(gridData, select = c(meanColSize, HostCover, FishAbundance, Depth, HotSnap)), 
+                                 k = 1))
+  gridData[paste0(castName, "_Estimate")] <- lookupTable$Estimate[nearTable$nn.idx]
+  gridData[paste0(castName, "_Q2.5")] <- lookupTable$Q2.5[nearTable$nn.idx]
+  gridData[paste0(castName, "_Q97.5")] <- lookupTable$Q2.5[nearTable$nn.idx]
+  gridData
+}
 
-nearTable <- as.data.frame(nn2(data = subset(lookupTable, select = c(meanColSize, HostCover, FishAbundance, Depth, HotSnap)), 
-                               query = subset(vs_summary_wide, select = c(meanColSize, HostCover, FishAbundance, Depth, HotSnap)), 
-                               k = 1))
-vs_summary_wide$Estimate <- lookupTable$Estimate[nearTable$nn.idx]
-vs_summary_wide$Q2.5 <- lookupTable$Q2.5[nearTable$nn.idx]
-vs_summary_wide$Q97.5 <- lookupTable$Q97.5[nearTable$nn.idx]
+nowcast_scenarios <- castScenarios(vs_summary_wide, "Nowcast", "Nowcast")
+forecast4_scenarios <- castScenarios(vs_summary_wide, "X4wkForecast", "X4wkForecast")
+forecast8_scenarios <- castScenarios(vs_summary_wide, "X8wkForecast", "X8wkForecast")
+forecast12_scenarios <- castScenarios(vs_summary_wide, "X12wkForecast", "X12wkForecast")
+
+vs_scenarios <- cbind(nowcast_scenarios, forecast4_scenarios[, 16:18])
+vs_scenarios <- cbind(vs_scenarios, forecast8_scenarios[, 16:18])
+vs_scenarios <- cbind(vs_scenarios, forecast12_scenarios[, 16:18])
+
 save(vs_summary_wide, file = "compiled_data/vs_summary_wide.RData")
 
 # determine risk estimates for all combinations of scenario values
