@@ -51,11 +51,46 @@ plot(ga_fit)
 # predict for nowcast and forecasts
 library(dplyr)
 library(raster)
+library(RANN)
+
+#load data
 load("Compiled_data/HI_grid_with_static_and_forecasted_covariates.RData")
 
-HI_grid2 <- subset(HI_grid, EnsembleMember <= 5)
+meanColSize = seq(0, round(max(HI_grid$Porites_MeanColonySize)*2), 5)
+HostCover = seq(0, round(max(HI_grid$Porites_mean_cover)*2), 3)
+FishAbundance = seq(0, round(max(HI_grid$H_abund)*2), 0.1)
+Depth = seq(0, round(max(HI_grid$Porites_MeanDepth)*2), 5)
+HotSnap = c(seq(0, 2, 0.2), seq(3, round(max(HI_grid$Nowcast, HI_grid$X4wkForecast, HI_grid$X8wkForecast, HI_grid$X12wkForecast, na.rm = T)*1.5), 1))
 
-create_df <- function(grid, hotsnap){
+newdata <- expand.grid("meanColSize" = meanColSize, 
+                       "HostCover" = HostCover, 
+                       "FishAbundance" = FishAbundance,
+                       "Depth" = Depth,
+                       "HotSnap" = HotSnap,
+                       KEEP.OUT.ATTRS = T)
+
+
+ga_predictions <- predict(ga_fit, newdata = newdata)
+save(ga_predictions, file = "Compiled_data/HI_ga_predictions.RData")
+
+# find GA values given different conditions
+lookupTable <- cbind(newdata, ga_predictions)
+HI_grid$meanColSize <- HI_grid$Porites_MeanColonySize
+HI_grid$HostCover <- HI_grid$Porites_mean_cover
+HI_grid$FishAbundance <- HI_grid$H_abund
+HI_grid$Depth <- HI_grid$Porites_MeanDepth
+
+castPred <- function(gridData, HS_name){
+  gridData[, "HotSnap"] = gridData[, HS_name]
+  gridData <- gridData[complete.cases(gridData),]
+  nearTable <- as.data.frame(nn2(data = subset(lookupTable, select = c(meanColSize, HostCover, FishAbundance, Depth, HotSnap)), 
+                                 query = subset(gridData, select = c(meanColSize, HostCover, FishAbundance, Depth, HotSnap)), 
+                                 k = 1))
+  gridData$Estimate <- lookupTable$Estimate[nearTable$nn.idx]
+  gridData[,c("Island", "Longitude", "Latitude", "Estimate")] 
+}
+
+# create_df <- function(grid, hotsnap){
   newdata <- data.frame(
     meanColSize = HI_grid2$Porites_MeanColonySize,
     HostCover = HI_grid2$Porites_mean_cover, # this is not actually the same!
@@ -65,9 +100,8 @@ create_df <- function(grid, hotsnap){
   )
 }
 
-summarise_results <- function(grid, predictions){
-  summary_df <- cbind(grid, predictions)
-  summary_df <- summary_df %>%
+summarise_results <- function(predictions){
+  summary_df <- predictions %>%
     group_by(Longitude, Latitude) %>%
     summarise(Estimate = median(Estimate))
 }
@@ -82,9 +116,8 @@ df_to_raster <- function(grid, cast, disease){
   writeRaster(grid, file=fileName)
 }
 
-summarise_with_uncertainty <- function(grid, predictions, cast, disease){
-  summary_df <- cbind(grid, predictions)
-  summary_df <- summary_df %>%
+summarise_with_uncertainty <- function(predictions, cast, disease){
+  summary_df <- predictions %>%
     group_by(Island, Longitude, Latitude) %>%
     summarise(Estimate = median(Estimate),
               Q2.5 = quantile(Estimate, 0.025, na.rm = T),
@@ -95,60 +128,109 @@ summarise_with_uncertainty <- function(grid, predictions, cast, disease){
   save(summary_df, file = fileName)
 }
 
+pred_8wkcast <- castPred(HI_grid, "X4wkForecast")
+pred_8wkcast <- castPred(HI_grid, "X4wkForecast")
+
 # Nowcast
-nowcast <- create_df(HI_grid2, "Nowcast")
-ga_nowcast_predictions <- predict(ga_fit, newdata = nowcast)
-nowcast_df <- summarise_results(HI_grid2, ga_nowcast_predictions)
+pred_nowcast <- castPred(HI_grid, "Nowcast")
+nowcast_df <- summarise_results(pred_nowcast)
 df_to_raster(nowcast_df, "nowcasts", "ga")
-summarise_with_uncertainty(HI_grid2, ga_nowcast_predictions, "nowcasts", "ga")
+summarise_with_uncertainty(pred_nowcast, "nowcasts", "ga")
 
 # 4wk forecast
-cast4 <- create_df(HI_grid2, "X4wkForecast")
-ga_4wkcast_predictions <- predict(ga_fit, newdata = cast4)
-cast4_df <- summarise_results(HI_grid2, ga_4wkcast_predictions)
+pred_4wkcast <- castPred(HI_grid, "X4wkForecast")
+cast4_df <- summarise_results(pred_4wkcast)
 df_to_raster(cast4_df, "forecasts_4wk", "ga")
-summarise_with_uncertainty(HI_grid2, ga_4wkcast_predictions, "forecasts_4wk", "ga")
+summarise_with_uncertainty(pred_4wkcast, "forecasts_4wk", "ga")
 
 # 8wk forecast
-cast8 <- create_df(HI_grid2, "X8wkForecast")
-ga_8wkcast_predictions <- predict(ga_fit, newdata = cast8)
-cast8_df <- summarise_results(HI_grid2, ga_8wkcast_predictions)
+pred_8wkcast <- castPred(HI_grid, "X8wkForecast")
+cast8_df <- summarise_results(pred_8wkcast)
 df_to_raster(cast8_df, "forecasts_8wk", "ga")
-summarise_with_uncertainty(HI_grid2, ga_8wkcast_predictions, "forecasts_8wk", "ga")
+summarise_with_uncertainty(pred_8wkcast, "forecasts_8wk", "ga")
 
 # 12wk forecast
-cast12 <- create_df(HI_grid2, "X12wkForecast")
-ga_12wkcast_predictions <- predict(ga_fit, newdata = cast12)
-cast12_df <- summarise_results(HI_grid2, ga_12wkcast_predictions)
+pred_12wkcast <- castPred(HI_grid, "X12wkForecast")
+cast12_df <- summarise_results(pred_12wkcast)
 df_to_raster(cast12_df, "forecasts_12wk", "ga")
-summarise_with_uncertainty(HI_grid2, ga_12wkcast_predictions, "forecasts_12wk", "ga")
+summarise_with_uncertainty(pred_12wkcast, "forecasts_12wk", "ga")
 
-# virtual station summary
-load("Compiled_data/nowcasts/csv/ga_nowcasts_risk_2020-11-17.RData")
-nowcast <- summary_df
+# virtual station summaries with scenarios
+# create scenario values
+library(tidyr)
+HI_grid$VS <- as.character(HI_grid$Island)
+HI_grid$VS[HI_grid$VS == "Hawaii"] <- "Big Island"
+HI_grid$VS[HI_grid$VS == "Maui"|HI_grid$VS == "Molokai"|HI_grid$VS == "Lanai"|HI_grid$VS == "Kaula"] <- "Maui - Molokai - Lanai - Kahoolawe"
+HI_grid$VS[HI_grid$VS == "Kauai"|HI_grid$VS == "Niihau"] <- "Kauai - Niihau"
 
-load("Compiled_data/forecasts_4wk/csv/ga_forecasts_4wk_risk_2020-11-17.RData")
-cast4 <- summary_df
+vs_summary <- HI_grid %>%
+  group_by(VS) %>%
+  summarise(
+    meanColSize = mean(Porites_MeanColonySize),
+    HostCover = mean(Porites_mean_cover),
+    FishAbundance = mean(H_abund),
+    Depth = mean(Porites_MeanDepth),
+    HotSnap = mean(Nowcast, na.rm = T),
+    # X4wkForecast = mean(X4wkForecast, na.rm = T),
+    # X8wkForecast = mean(X8wkForecast, na.rm = T),
+    # X12wkForecast = mean(X12wkForecast, na.rm = T)
+  ) #%>%
+  # gather(covariate, value, meanColSize:HotSnap)
 
-load("Compiled_data/forecasts_8wk/csv/ga_forecasts_8wk_risk_2020-11-17.RData")
-cast8 <- summary_df
+scenario_values <- c(seq(-50, -10, 10), 100, seq(10, 50, 10))
+scenario_df <- expand.grid("VS" = unique(vs_summary$VS),
+                           "meanColSize_condition" = scenario_values,
+                           "HostCover_condition" = scenario_values,
+                           "FishAbundance_condition" = scenario_values,
+                           "Depth_condition" = scenario_values,
+                           "HotSnap_condition" = scenario_values)
 
-load("Compiled_data/forecasts_12wk/csv/ga_forecasts_12wk_risk_2020-11-17.RData")
-cast12 <- summary_df
+vs_summary_wide <- merge(vs_summary, scenario_df, by = "VS", all.y = T)
 
-vs_summaries <- do.call("rbind", list(nowcast, cast4, cast8, cast12))
-vs_summaries$Cast <- c(rep("Nowcast", nrow(nowcast)),
-                       rep("Forecast-4wk", nrow(cast4)),
-                       rep("Forecast-8wk", nrow(cast8)),
-                       rep("Forecast-12wk", nrow(cast12)))
+delta_value <- function(df, colname){
+  df[, colname] + df[, paste0(colname, "_condition")]/100 * df[, colname]
+}
 
-vs_summaries$VS <- as.character(vs_summaries$Island)
-vs_summaries$VS[vs_summaries$VS == "Hawaii"] <- "Big Island"
-vs_summaries$VS[vs_summaries$VS == "Maui"|vs_summaries$VS == "Molokai"|vs_summaries$VS == "Lanai"] <- "Maui - Molokai - Lanai - Kahoolawe"
-vs_summaries$VS[vs_summaries$VS == "Kauai"|vs_summaries$VS == "Niihau"] <- "Kauai - Niihau"
+vs_summary_wide$meanColSize <- delta_value(vs_summary_wide, "meanColSize")
+vs_summary_wide$HostCover <- delta_value(vs_summary_wide, "HostCover")
+vs_summary_wide$FishAbundance <- delta_value(vs_summary_wide, "FishAbundance")
+vs_summary_wide$Depth <- delta_value(vs_summary_wide, "Depth")
+vs_summary_wide$HotSnap <- delta_value(vs_summary_wide, "HotSnap")
 
-vs_summary <- vs_summaries %>%
-  group_by(Island, VS, Cast) %>%
-  summarise_all(median, na.rm = T)
+vs_summary_wide[vs_summary_wide == 100] <- 0
 
-save(vs_summary, file = "VS_summary.RData")
+# vs_scenarios <- castPred(vs_summary_wide, "HotSnap")
+
+nearTable <- as.data.frame(nn2(data = subset(lookupTable, select = c(meanColSize, HostCover, FishAbundance, Depth, HotSnap)), 
+                               query = subset(vs_summary_wide, select = c(meanColSize, HostCover, FishAbundance, Depth, HotSnap)), 
+                               k = 1))
+vs_summary_wide$Estimate <- lookupTable$Estimate[nearTable$nn.idx]
+vs_summary_wide$Q2.5 <- lookupTable$Q2.5[nearTable$nn.idx]
+vs_summary_wide$Q97.5 <- lookupTable$Q97.5[nearTable$nn.idx]
+save(vs_summary_wide, file = "compiled_data/vs_summary_wide.RData")
+
+# determine risk estimates for all combinations of scenario values
+# load("Compiled_data/nowcasts/csv/ga_nowcasts_risk_2020-11-17.RData")
+# nowcast <- summary_df
+# 
+# load("Compiled_data/forecasts_4wk/csv/ga_forecasts_4wk_risk_2020-11-17.RData")
+# cast4 <- summary_df
+# 
+# load("Compiled_data/forecasts_8wk/csv/ga_forecasts_8wk_risk_2020-11-17.RData")
+# cast8 <- summary_df
+# 
+# load("Compiled_data/forecasts_12wk/csv/ga_forecasts_12wk_risk_2020-11-17.RData")
+# cast12 <- summary_df
+# 
+# vs_summaries <- do.call("rbind", list(nowcast, cast4, cast8, cast12))
+# vs_summaries$Cast <- c(rep("Nowcast", nrow(nowcast)),
+#                        rep("Forecast-4wk", nrow(cast4)),
+#                        rep("Forecast-8wk", nrow(cast8)),
+#                        rep("Forecast-12wk", nrow(cast12)))
+# 
+# 
+# vs_summary <- vs_summaries %>%
+#   group_by(Island, VS, Cast) %>%
+#   summarise_all(median, na.rm = T)
+# 
+# save(vs_summary, file = "VS_summary.RData")
