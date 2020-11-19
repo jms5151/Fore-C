@@ -52,6 +52,7 @@ plot(ga_fit)
 library(dplyr)
 library(raster)
 library(RANN)
+library(tidyr)
 
 #load data
 load("Compiled_data/HI_grid_with_static_and_forecasted_covariates.RData")
@@ -75,6 +76,7 @@ save(ga_predictions, file = "Compiled_data/HI_ga_predictions.RData")
 
 # find GA values given different conditions
 lookupTable <- cbind(newdata, ga_predictions)
+# save(lookupTable, file = "Compiled_data/HI_lookupTable.RData")
 HI_grid$meanColSize <- HI_grid$Porites_MeanColonySize
 HI_grid$HostCover <- HI_grid$Porites_mean_cover
 HI_grid$FishAbundance <- HI_grid$H_abund
@@ -157,7 +159,6 @@ summarise_with_uncertainty(pred_12wkcast, "forecasts_12wk", "ga")
 
 # virtual station summaries with scenarios
 # create scenario values
-library(tidyr)
 HI_grid$VS <- as.character(HI_grid$Island)
 HI_grid$VS[HI_grid$VS == "Hawaii"] <- "Big Island"
 HI_grid$VS[HI_grid$VS == "Maui"|HI_grid$VS == "Molokai"|HI_grid$VS == "Lanai"|HI_grid$VS == "Kaula"] <- "Maui - Molokai - Lanai - Kahoolawe"
@@ -202,6 +203,8 @@ vs_summary_wide$X12wkForecast <- delta_value(vs_summary_wide, "X12wkForecast", "
 vs_summary_wide[vs_summary_wide == 100] <- 0
 
 # Get estimates from lookup table
+# load("Compiled_data/HI_lookupTable.RData")
+
 castScenarios <- function(gridData, HS_name, castName){
   gridData[, "HotSnap"] = gridData[, HS_name]
   gridData <- gridData[complete.cases(gridData),]
@@ -210,7 +213,7 @@ castScenarios <- function(gridData, HS_name, castName){
                                  k = 1))
   gridData[paste0(castName, "_Estimate")] <- lookupTable$Estimate[nearTable$nn.idx]
   gridData[paste0(castName, "_Q2.5")] <- lookupTable$Q2.5[nearTable$nn.idx]
-  gridData[paste0(castName, "_Q97.5")] <- lookupTable$Q2.5[nearTable$nn.idx]
+  gridData[paste0(castName, "_Q97.5")] <- lookupTable$Q97.5[nearTable$nn.idx]
   gridData
 }
 
@@ -223,7 +226,20 @@ vs_scenarios <- cbind(nowcast_scenarios, forecast4_scenarios[, 16:18])
 vs_scenarios <- cbind(vs_scenarios, forecast8_scenarios[, 16:18])
 vs_scenarios <- cbind(vs_scenarios, forecast12_scenarios[, 16:18])
 
-save(vs_summary_wide, file = "compiled_data/vs_summary_wide.RData")
+save(vs_scenarios, file = "compiled_data/vs_scenarios_wide.RData")
+
+vs_long <- vs_scenarios %>%
+  gather(Cast, value, Nowcast_Estimate:X12wkForecast_Q97.5) %>% 
+  separate(Cast, c("Cast", "Type"), sep = "_") %>% 
+  spread(Type, value)
+
+cfsDate <- as.Date("2020-09-26", "%Y-%m-%d")
+vs_long$Date <- cfsDate
+vs_long$Date[vs_long$Cast == "X4wkForecast"] <- cfsDate + 30
+vs_long$Date[vs_long$Cast == "X8wkForecast"] <- cfsDate + 60  
+vs_long$Date[vs_long$Cast == "X12wkForecast"] <- cfsDate + 90
+
+save(vs_long, file = "Compiled_data/vs_scenarios_long.RData")
 
 # determine risk estimates for all combinations of scenario values
 # load("Compiled_data/nowcasts/csv/ga_nowcasts_risk_2020-11-17.RData")

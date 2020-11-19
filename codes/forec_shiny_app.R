@@ -1,18 +1,10 @@
 # Fore-C interactive explorer ------------------------------------------------
 rm(list=ls()) #remove previous variable assignments
 
+# Useful hyperlinks:
 # https://github.com/eparker12/nCoV_tracker/blob/master/app.R
-
-# one piece of an answer to this StackOverflow question
-#  http://stackoverflow.com/questions/31814037/integrating-time-series-graphs-and-leaflet-maps-using-r-shiny
-
-# for this we'll use Kyle Walker's rpubs example
-#   http://rpubs.com/walkerke/leaflet_choropleth
-# combined with data from Diego Valle's crime in Mexico project
-#   https://github.com/diegovalle/mxmortalitydb
-
-# we'll also build on the shiny example included in dygraphs
-#  https://github.com/rstudio/leaflet/blob/master/inst/examples/shiny.R
+# https://rstudio-pubs-static.s3.amazonaws.com/307862_b8c8460272dc4a2a9023d033d5f3ec34.html # interactive polygons
+# to use the css I need to download docs: https://shiny.rstudio.com/articles/css.html
 
 # load libraries
 library(shiny)
@@ -24,90 +16,81 @@ library(raster)
 library(flexdashboard)
 library(tidyverse)
 library(shinyWidgets)
-
-# install.packages("leafpop")
-# library(leafpop)
+library(rgdal) # needed if using clickable polygons
+library(sf) # needed if using clickable polygons
 
 # load data
-load("Compiled_data/observational_data.RData")
 load("Compiled_data/historical_surveys.RData")
-load("Compiled_data/number_surveys.RData")
+vs <- read.csv("Data/virtual_stations.csv", stringsAsFactors = F)
+load("Compiled_data/vs_scenarios_long.RData")
 source("codes/addScaleBar.R")
-load("Compiled_data/grid.RData")
 
-# library(rgdal)
-# library(raster)
-# library(sf)
-# 
+# load rasters
+lastUpdate <- substr(max(list.files("Compiled_data/nowcasts/raster/")), 1, 10)
+ga_nowcast <- raster(paste0("Compiled_data/forecasts_4wk/raster/", lastUpdate, "_ga.tif"))
+ga_4wkcast <- raster(paste0("Compiled_data/nowcasts/raster/", lastUpdate, "_ga.tif"))
+ga_8wkcast <- raster(paste0("Compiled_data/forecasts_8wk/raster/", lastUpdate, "_ga.tif"))
+ga_12wkcast <- raster(paste0("Compiled_data/forecasts_12wk/raster/", lastUpdate, "_ga.tif"))
+
+# map settings (commented out polygon mapping) 
 # p <- as(ga_nowcast, "SpatialPolygonsDataFrame")
 # nByTown_latlon <- spTransform(p, CRS("+proj=longlat +datum=WGS84"))
-# 
-# bins <- seq(0, 0.5, 0.1)
-# pal <- colorBin("YlOrRd", domain = nByTown_latlon$X2020.06.05_ga, bins = bins)
+bins <- seq(0, 0.3, 0.05)
+# pal <- colorBin("YlOrRd", domain = nByTown_latlon$X2020.11.18_ga, bins = bins)
+pal <- colorBin(colorRampPalette(c("blue", "yellow", "red"))(30), domain = ga_nowcast$X2020.11.18_ga, bins = bins)
 # 
 # testplot <- list(plot(seq(1,10,1), seq(1,10,1), xlab = "x", ylab = "y", pch = 16))
+# 
+# labelx <- paste0("Estimate disease risk = ", round(nByTown_latlon$X2020.11.18_ga, 2)*100, "%") %>% 
+#   lapply(htmltools::HTML)
 # 
 # leaflet() %>%
 #   addTiles() %>%
 #   addPolygons(data = nByTown_latlon,
-#               fillColor = ~pal(nByTown_latlon$X2020.06.05_ga),
+#               fillColor = ~pal(nByTown_latlon$X2020.11.18_ga),
 #               weight = 2,
 #               opacity = 1,
-#               color = ~pal(nByTown_latlon$X2020.06.05_ga),
-#               fillOpacity = 0.7) %>%
+#               color = ~pal(nByTown_latlon$X2020.11.18_ga),
+#               fillOpacity = 0.7,
+#               labels = labelx,
+#               labelOptions = labelOptions(style = list("font-weight" = "normal", 
+#                                                        padding = "3px 8px"),
+#                                           textsize = "15px",
+#                                           direction = "auto")) 
+#   
 #   popupGraph(testplot,
 #              width = 300,
 #              height = 300)
 
-# load nowcasts
-lastUpdate <- substr(max(list.files("Compiled_data/nowcasts/raster/")), 1, 10)
-total_nowcast <- raster(paste0("Compiled_data/nowcasts/raster/", lastUpdate, "_total.tif"))
-bbd_nowcast <- raster(paste0("Compiled_data/nowcasts/raster/", lastUpdate, "_bbd.tif"))
-ga_nowcast <- raster(paste0("Compiled_data/nowcasts/raster/", lastUpdate, "_ga.tif"))
-ws_nowcast <- raster(paste0("Compiled_data/nowcasts/raster/", lastUpdate, "_ws.tif"))
 
-# other data
-vs <- read.csv("Data/virtual_stations.csv", stringsAsFactors = F)
 
-## raster data is slow to load and not needed
-## issue making map 100% of page, copy LSTHM
-# maybe make new polygon of reef grid and then make that interactive
-# https://rstudio-pubs-static.s3.amazonaws.com/307862_b8c8460272dc4a2a9023d033d5f3ec34.html
+legendLabels <- c("0-5", "6-10", "9-15", "16-20", "21-25", "26-30", "NA")
 
 # create maps
 basemap <- leaflet() %>%
-  # addTiles() %>%
   addTiles(group = "OpenStreetMap") %>%
   addTiles(urlTemplate="http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", group = "Satellite") %>%
   addScaleBar() %>%
-  # addPolygons(data = nByTown_latlon,
-  #             fillColor = ~pal(nByTown_latlon$X2020.06.05_ga),
-  #             weight = 2,
-  #             opacity = 1,
-  #             color = ~pal(nByTown_latlon$X2020.06.05_ga),
-  #             fillOpacity = 0.7, 
-  #             group = "Nowcast") %>%
-  # addPolygons(data = nByTown_latlon,
-  #             fillColor = ~pal(nByTown_latlon$X2020.06.05_ga),
-  #             weight = 2,
-  #             opacity = 1,
-  #             color = ~pal(nByTown_latlon$X2020.06.05_ga),
-  #             fillOpacity = 0.7, 
-  #             group = "4-week forecast") %>%
-  addRasterImage(total_nowcast, colors = "Spectral", opacity = 0.6, group = "Nowcast") %>%
-  addRasterImage(bbd_nowcast, colors = "Spectral", opacity = 0.6, group = "4-week forecast") %>%
-  addRasterImage(ga_nowcast, colors = "Spectral", opacity = 0.6, group = "8-week forecast") %>%
-  addRasterImage(ws_nowcast, colors = "Spectral", opacity = 0.6, group = "12-week forecast") %>%
-  setView(lng = 180, lat = 0 , zoom = 3)  %>%
+  addRasterImage(ga_nowcast, colors = "Spectral", opacity = 0.6, group = "Nowcast") %>%
+  addRasterImage(ga_4wkcast, colors = "Spectral", opacity = 0.6, group = "4-week forecast") %>%
+  addRasterImage(ga_8wkcast, colors = "Spectral", opacity = 0.6, group = "8-week forecast") %>%
+  addRasterImage(ga_12wkcast, colors = "Spectral", opacity = 0.6, group = "12-week forecast") %>%
+  # setView(lng = 180, lat = 0 , zoom = 3)  %>% # global
+  setView(lng = -157, lat = 20 , zoom = 7)  %>% # Hawaii
   addLayersControl(
     overlayGroups = c("Nowcast", "4-week forecast", "8-week forecast", "12-week forecast"),
     baseGroups = c("OpenStreetMap", "Satellite"),
     options = layersControlOptions(collapsed = FALSE), # icon versus buttons with text
     position = c("bottomright")
     ) %>%
-  hideGroup(c("4-week forecast", "8-week forecast", "12-week forecast"))
+  hideGroup(c("4-week forecast", "8-week forecast", "12-week forecast")) #%>%
+  # addLegend("bottomleft", pal = pal, values = values(ga_nowcast),
+  #           title = "Disease risk (%)",                              
+  #           labFormat = function(type, cuts, p) {  # Here's the trick
+  #             paste0(legendLabels)
+  #           }
+  # )
 
-  
 historicalMap = leaflet() %>%
   addTiles(urlTemplate="http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}") %>%
   addCircleMarkers(data=historical_data, lat = ~Latitude, lng = ~Longitude, radius = ~sqrt(N)
@@ -116,24 +99,23 @@ historicalMap = leaflet() %>%
   addScaleBar() %>%
   setView(lng = -180, lat = 16.4502 , zoom = 3)
 
-## create some simulated data
-simdata_dates <- seq.Date(as.Date("2020-08-01", "%Y-%m-%d"), as.Date("2020-12-31", "%Y-%m-%d"), by = "days") 
-vss <- unique(vs$Virtual_Stations)
-diseasetypes <- c("BBD", "GA", "WS")
-simdata <- data.frame(expand.grid(simdata_dates, vss, diseasetypes))
-colnames(simdata) <- c("Date", "Virtual_Station", "Disease")
-simdata$Disease <- rnorm(n = nrow(simdata), mean = 10, sd = 3)
-
-# to use the css I need to download docs: https://shiny.rstudio.com/articles/css.html
-
-# function to plot disease by virtual station
-vs_plot_fun = function(df){
-  g = ggplot(simdata, aes(Date, Disease, col = Virtual_Station)) +
-    geom_line() + 
-    theme_classic()
-  }
-
-
+# plotting function to visualize disease by virtual station
+vs_plot_fun <- function(df){
+  ggplot(data = df, aes(x = Date, y = Estimate*100, group = VS, color = VS)) + 
+    geom_point(size = 2) +
+    geom_line(size = 1) +
+    geom_ribbon(aes(ymin = Q2.5*100, 
+                    ymax = Q97.5*(2/3)*100, # just a placeholder to limit se upper bound, will use 75%ile later when not using brms
+                    group = VS,
+                    fill = VS), 
+                alpha = 0.1) +  
+    ylim(0,100) +
+    xlab("") +
+    ylab("Predicted disease prevalence (%)") +
+    theme_classic(base_size = 16) + 
+    theme(legend.title=element_blank())
+}
+  
 # run shiny app
 shinyApp(
   ui =  navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
@@ -143,65 +125,37 @@ shinyApp(
                       div(class="outer",
                           tags$head(includeCSS("styles.css")),
                           leafletOutput("disease_risk_map", width = "100%", height = "100%")),
-                      ## transparent and dragable layer with dropdown menu
-                      # absolutePanel(id = "controls", class = "panel panel-default",
-                                    # top = 75, left = 55, width = 250, fixed = TRUE,
-                                    # draggable = TRUE, height = "auto",
-                                    # selectInput("select_forecast", label = h3("Select forecast"),
-                                    #             choices = c("Nowcast",
-                                    #                         "4-week forecast",
-                                    #                         "8-week forecast",
-                                    #                         "12-week forecast"),
-                                    #             selected = "Nowcast"),
-                                    # hr(),
-                                    # textOutput("update")
-                                    # ),
                       ),
-                  # Scenarios page
-                  tabPanel("Scenarios",
+
+                   # Scenarios page
+                   tabPanel("Scenarios",
                            tabsetPanel(type = "tabs",
-                                       tabPanel("Black band disease",
+                                       tabPanel("Growth anomalies",
                                                 sidebarPanel(
                                                   
-                                                  pickerInput("region_select", "Region:",   
+                                                  pickerInput("ga_region_select", "Region:",   
                                                               choices = unique(vs[order(vs$Region),]$Region), 
                                                               selected = c("Hawaii"),
                                                               options = list(`actions-box` = TRUE, `none-selected-text` = "Please make a selection!"),
                                                               multiple = FALSE),
                                                   
-                                                  pickerInput("vs_select", "Virtual station(s):",
+                                                  pickerInput("ga_vs_select", "Virtual station(s):",
                                                               choices = vs$Virtual_Stations[vs$Region == "Hawaii"],
                                                               options = list(`actions-box` = TRUE, `none-selected-text` = "Please make a selection!"),
                                                               selected = vs$Virtual_Stations[vs$Region == "Hawaii"],
                                                               multiple = TRUE),
                                                   
-                                                  sliderInput("temp_slider", label = h3("Temperature"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
-                                                             hr(),
-                                                             sliderInput("light_slider", label = h3("Irradiance"), min = -100, max = 100, step=10, width='200px', post  = " %", value = 0),
-                                                             hr(),
-                                                             actionButton("reset_input", label = "Reset inputs") # https://stackoverflow.com/questions/24265980/reset-inputs-button-in-shiny-app
+                                                  "Scenarios:",
+                                                  sliderInput("colsize_slider", label = ("Mean colony size"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
+                                                  sliderInput("cover_slider", label = ("Host coral cover"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
+                                                  sliderInput("fish_slider", label = ("Fish abundance"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
+                                                  sliderInput("depth_slider", label = ("Depth (m)"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
+                                                  sliderInput("temp_slider", label = ("Temperature"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
+                                                  actionButton("reset_input", label = "Reset inputs") # https://stackoverflow.com/questions/24265980/reset-inputs-button-in-shiny-app
                                                 ),
                                                 mainPanel(
-                                                  tabPanel("Disease risk", plotOutput("vs_risk_plot"))
+                                                  tabPanel("Disease risk", plotOutput("ga_vs_risk_plot"))
                                                 )
-                                       ),
-                                       tabPanel("Growth anomalies",
-                                                sidebarPanel(
-                                                  
-                                                  pickerInput("region_select", "Region:",   
-                                                              choices = c("Australia", "American Samoa", "Hawaii", "Marianas", "Pacific Remote Island Areas"), 
-                                                              selected = c("Hawaii"),
-                                                              multiple = FALSE),
-                                                  
-                                                  sliderInput("temp_slider", label = h3("Temperature"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
-                                                             hr(),
-                                                             sliderInput("chl_slider", label = h3("Chlorophyll-a"), min = -100, max = 100, step=10, width='200px', post  = " %", value = 0),
-                                                             hr(),
-                                                             sliderInput("wave_slider", label = h3("Wave energy"), min = -100, max = 100, step=10, width='200px', post  = " %", value = 0),
-                                                             hr(),
-                                                             actionButton("reset_input", label = "Reset inputs") # https://stackoverflow.com/questions/24265980/reset-inputs-button-in-shiny-app
-                                                ),
-                                                mainPanel(leafletOutput("mymap4"))
 
                                        ),
                                        tabPanel("White syndromes",
@@ -233,106 +187,67 @@ shinyApp(
   
   server = function(input, output, session) { 
     
+    # Main map
     output$disease_risk_map <- renderLeaflet({
-      # if(input$nowcast_radio == 1){
-      #       x <- total_nowcast
-      #     }
-      #     if(input$nowcast_radio == 2){
-      #       x <- bbd_nowcast
-      #     }
-      #     if(input$nowcast_radio == 3){
-      #       x <- ga_nowcast
-      #     }
-      #     if(input$nowcast_radio == 4){
-      #       x <- ws_nowcast
-      #     }
-      basemap #%>%
-      #     addRasterImage(disease_risk_map, colors = "Spectral", opacity = 0.6) %>%
-      #     setView(lng = 180, lat = 16.4502 , zoom = 2)
+      basemap
     })
     
     # scenarios outputs
     # update region selections
-    observeEvent(input$region_select, {
-      if (input$region_select == "Hawaii") {
-        updatePickerInput(session = session, inputId = "vs_select", 
+    observeEvent(input$ga_region_select, {
+      if (input$ga_region_select == "Hawaii") {
+        updatePickerInput(session = session, inputId = "ga_vs_select", 
                           choices = vs$Virtual_Stations[vs$Region == "Hawaii"], 
                           selected = vs$Virtual_Stations[vs$Region == "Hawaii"])
       }
       
-      if (input$region_select == "Pacific Remote Island Areas") {
-        updatePickerInput(session = session, inputId = "vs_select", 
+      if (input$ga_region_select == "Pacific Remote Island Areas") {
+        updatePickerInput(session = session, inputId = "ga_vs_select", 
                           choices = vs$Virtual_Stations[vs$Region == "Pacific Remote Island Areas"], 
                           selected = vs$Virtual_Stations[vs$Region == "Pacific Remote Island Areas"])
       }
       
-      if (input$region_select == "Australia") {
-        updatePickerInput(session = session, inputId = "vs_select", 
+      if (input$ga_region_select == "Australia") {
+        updatePickerInput(session = session, inputId = "ga_vs_select", 
                           choices = vs$Virtual_Stations[vs$Region == "Australia"], 
                           selected = vs$Virtual_Stations[vs$Region == "Australia"])
       }
       
-      if (input$region_select == "Marianas") {
-        updatePickerInput(session = session, inputId = "vs_select", 
+      if (input$ga_region_select == "Marianas") {
+        updatePickerInput(session = session, inputId = "ga_vs_select", 
                           choices = vs$Virtual_Stations[vs$Region == "Marianas"], 
                           selected = vs$Virtual_Stations[vs$Region == "Marianas"])
       }
       
-      if (input$region_select == "American Samoa") {
-        updatePickerInput(session = session, inputId = "vs_select", 
+      if (input$ga_region_select == "American Samoa") {
+        updatePickerInput(session = session, inputId = "ga_vs_select", 
                           choices = vs$Virtual_Stations[vs$Region == "American Samoa"], 
                           selected = vs$Virtual_Stations[vs$Region == "American Samoa"])
       }
       
     }, ignoreInit = TRUE)
     
-    # # create dataframe with selected virtual stations
-    # vs_reactive_db = reactive({
-    #   simdata %>% filter(Virtual_Station %in% input$vs_select)
-    # })
-    # 
-    # # VS-specific plots
-    # output$vs_risk_plot <- renderPlot({
-    #   # vs_plot_fun(vs_reactive_db())
-    #   ggplot(vs_reactive_db(), aes(Date, Disease, col = Virtual_Station)) +
-    #     geom_line() + 
-    #     theme_classic()
-    # })
-    
-    # create dataframe with selected countries
-    # vs_reactive_db = reactive({
-    #   if (input$region_select == "Hawaii") { 
-    #     db = subset(simdata, Region == "Hawaii")
-    #   }
-    # })
-    # regionSelection <- reactive({
-    #   subset(vs, Region == input$region_select)
-    # })
-
-    # update <- renderText({vs$Virtual_Stations[vs$Region == input$region_select]})
-    # update region selections
-    # vs_selected <- vs$Virtual_Stations[vs$Region == input$region_select]
-    # 
-    # observeEvent(input$vs_select, {
-      # update <- vs[vs$Region == input$region_select, "Virtual_Stations"]
-      # x <- input$region_select
-      # if (input$region_select == x) {
-      #   updatePickerInput(session = session, inputId = "vs_select",
-      #                     choices = vs$Virtual_Stations[vs$Region == x],
-      #                     selected = vs$Virtual_Stations[vs$Region == x])
-      # }
-
-      # updatePickerInput(session = session, inputId = "vs_select",
-      #                   choices = vs$Virtual_Stations[vs$Region == x],
-      #                   selected = vs$Virtual_Stations[vs$Region == x])
-    # }, ignoreInit = TRUE)
-  
     observeEvent(input$vs_select, ignoreInit = TRUE, {
-        updateSelectInput(session, "vs_select",
-                          selected = vs[vs$Region == input$region_select, "Virtual_Stations", drop = TRUE])
+      updateSelectInput(session, "vs_select",
+                        selected = vs[vs$Region == input$region_select, "Virtual_Stations", drop = TRUE])
     })
     
-
+    # plot disease risk by virtual station and adjust by scenario settings
+    output$ga_vs_risk_plot <- renderPlot({
+      reactive_ga_db <- reactive({
+        vs_long %>% 
+          filter(VS %in% input$ga_vs_select 
+                 & meanColSize_condition == input$colsize_slider
+                 & HostCover_condition == input$cover_slider
+                 & FishAbundance_condition == input$fish_slider
+                 & Depth_condition == input$depth_slider
+                 & HotSnap_condition == input$temp_slider
+          )
+      })
+      vs_plot_fun(reactive_ga_db())
+    })
+    
+    # map historical data
     output$historical_data_map <- renderLeaflet({
       historicalMap
     })
