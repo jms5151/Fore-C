@@ -37,8 +37,11 @@ ga_12wkcast <- raster(paste0("Compiled_data/forecasts_12wk/raster/", lastUpdate,
 # nByTown_latlon <- spTransform(p, CRS("+proj=longlat +datum=WGS84"))
 bins <- seq(0, 0.3, 0.05)
 # pal <- colorBin("YlOrRd", domain = nByTown_latlon$X2020.11.18_ga, bins = bins)
-pal <- colorBin(colorRampPalette(c("blue", "yellow", "red"))(30), domain = ga_nowcast$X2020.11.18_ga, bins = bins)
-# 
+pal <- colorBin(colorRampPalette(c("blue", "yellow", "red"))(30), domain = ga_nowcast$X2020.11.18_ga, bins = bins, na.color = "transparent")
+
+# pal <- colorNumeric(c("#0C2C84", "#41B6C4", "#FFFFCC"), values(ga_12wkcast),
+#                     na.color = "transparent") 
+
 # testplot <- list(plot(seq(1,10,1), seq(1,10,1), xlab = "x", ylab = "y", pch = 16))
 # 
 # labelx <- paste0("Estimate disease risk = ", round(nByTown_latlon$X2020.11.18_ga, 2)*100, "%") %>% 
@@ -71,10 +74,10 @@ basemap <- leaflet() %>%
   addTiles(group = "OpenStreetMap") %>%
   addTiles(urlTemplate="http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", group = "Satellite") %>%
   addScaleBar() %>%
-  addRasterImage(ga_nowcast, colors = "Spectral", opacity = 0.6, group = "Nowcast") %>%
-  addRasterImage(ga_4wkcast, colors = "Spectral", opacity = 0.6, group = "4-week forecast") %>%
-  addRasterImage(ga_8wkcast, colors = "Spectral", opacity = 0.6, group = "8-week forecast") %>%
-  addRasterImage(ga_12wkcast, colors = "Spectral", opacity = 0.6, group = "12-week forecast") %>%
+  addRasterImage(ga_nowcast, colors = pal, opacity = 0.6, group = "Nowcast") %>%
+  addRasterImage(ga_4wkcast, colors = pal, opacity = 0.6, group = "4-week forecast") %>%
+  addRasterImage(ga_8wkcast, colors = pal, opacity = 0.6, group = "8-week forecast") %>%
+  addRasterImage(ga_12wkcast, colors = pal, opacity = 0.6, group = "12-week forecast") %>%
   # setView(lng = 180, lat = 0 , zoom = 3)  %>% # global
   setView(lng = -157, lat = 20 , zoom = 7)  %>% # Hawaii
   addLayersControl(
@@ -83,14 +86,15 @@ basemap <- leaflet() %>%
     options = layersControlOptions(collapsed = FALSE), # icon versus buttons with text
     position = c("bottomright")
     ) %>%
-  hideGroup(c("4-week forecast", "8-week forecast", "12-week forecast")) #%>%
-  # addLegend("bottomleft", pal = pal, values = values(ga_nowcast),
-  #           title = "Disease risk (%)",                              
-  #           labFormat = function(type, cuts, p) {  # Here's the trick
-  #             paste0(legendLabels)
-  #           }
-  # )
+  hideGroup(c("4-week forecast", "8-week forecast", "12-week forecast")) %>%
+  addLegend("bottomleft", pal = pal, values = values(ga_12wkcast),
+            title = "Disease risk (%)",
+            labFormat = function(type, cuts, p) {  # Here's the trick
+              paste0(legendLabels)
+            }
+  )
 
+# historical map
 historicalMap = leaflet() %>%
   addTiles(urlTemplate="http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}") %>%
   addCircleMarkers(data=historical_data, lat = ~Latitude, lng = ~Longitude, radius = ~sqrt(N)
