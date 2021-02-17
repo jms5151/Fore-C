@@ -128,7 +128,7 @@ shinyApp(
                    tabPanel("Coral disease predictions",
                       div(class="outer",
                           tags$head(includeCSS("styles.css")),
-                          leafletOutput("disease_risk_map", width = "100%", height = "100%")),
+                          leafletOutput("disease_risk_map", width = "100%", height = "100%"))
                       ),
 
                    # Scenarios page

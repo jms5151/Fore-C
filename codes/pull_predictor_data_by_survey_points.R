@@ -4,6 +4,8 @@ rm(list=ls()) #remove previous variable assignments
 # load library
 library(RANN)
 library(tidyverse)
+library(raster)
+library(rgdal)
 
 # load predictor data
 load("Compiled_data/SST_MMM.RData")
@@ -11,6 +13,7 @@ load("Compiled_data/CHL_MMM.RData")
 load("Compiled_data/Night_Lights.RData")
 load("Compiled_data/GA_with_noaa_data.RData")
 sesync_data <- read.csv("Compiled_data/msec_out_wave_and_market.csv", head = T)
+nightLights <- raster("Data/nightlights.tif")
 
 # load response data
 load("Compiled_data/GA.RData")
@@ -44,6 +47,17 @@ merged_ga <- ga
 #   # add predictor data to original dataset
 #   merged_ga[which(merged_ga$SITEVISITID %in% ga_tmp$SITEVISITID),c("CHL_MMM", "CHL_MMM_dist", "SST_MMM", "SST_MMM_dist")] <- ga_tmp[,c("CHL_MMM", "CHL_MMM_dist", "SST_MMM", "SST_MMM_dist")]
 # }
+
+
+surveyNTL <- extract(nightLights, cbind(merged_ga$Longitude, merged_ga$Latitude))
+temp.df <- cbind(merged_ga, "NL" = surveyNTL[,])
+
+# then take the raster value with lowest distance to point AND non-NA value in the raster
+sampled = apply(X = merged_ga[,c("Longitude", "Latitude")], MARGIN = 1, FUN = function(xy) surveyNTL@data@values[which.min(replace(distanceFromPoints(surveyNTL, xy), is.na(surveyNTL), NA))])
+
+# then take the raster value with lowest distance to point AND non-NA value in the raster
+sampled = apply(X = xy, MARGIN = 1, FUN = function(xy) r@data@values[which.min(replace(distanceFromPoints(r, xy), is.na(r), NA))])
+
 
 # add night time lights predictor data by survey location
 # merged_ga_backup <-merged_ga
