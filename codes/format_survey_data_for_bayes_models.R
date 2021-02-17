@@ -158,6 +158,7 @@ observations$Region[observations$Region=="MARIAN"] <- "Marianas"
 observations$Region[observations$Region=="SAMOA"] <- "Samoa"
 
 # format island
+observations$Island <- as.character(observations$Island)
 observations$Island[observations$Island == "French_Frigate_Shoals"] <- "French Frigate"
 observations$Island[observations$Island == "Pearl_and_Hermes"] <- "Pearl & Hermes"
 observations$Island <- ifelse(observations$Region == "GBR", "", observations$Island)
