@@ -3,6 +3,7 @@ rm(list=ls()) #remove previous variable assignments
 
 # load data ---------------------------
 source("codes/initial_survey_formatting.R")
+load("Compiled_data/median_colony_sizes_by_island.RData")
 
 # vector of column names
 final_column_names <- c("Date", "Latitude", "Longitude", "Region", "Island", "Family", "Project", "C", "Y", "p", "Median_colony_size", "Coral_cover")
@@ -82,8 +83,13 @@ ws <- rbindlist(list(ws_esd0812, ws_esd1317, ws_hicordis, ws_guam, ws_gbr))
 
 # filter 
 ws <- ws %>% 
+  left_join(median_sizes, by = c("Island", "Family")) %>%
   filter(!is.na(Family)) %>% 
   filter(C >= minColNum)
+
+# add island level colony median size if NA 
+ws$Median_colony_size <- ifelse(is.na(ws$Median_colony_size) == T, ws$Island_median_colony_size, ws$Median_colony_size)
+ws$Island_median_colony_size <- NULL
 
 # add ID
 ws$HS_ID <- seq(1, nrow(ws), 1)
@@ -151,8 +157,13 @@ ga <- rbindlist(list(ga_esd0812, ga_esd1317, ga_hicordis, ga_guam, ga_gbr))
 
 # filter 
 ga <- ga %>% 
+  left_join(median_sizes, by = c("Island", "Family")) %>%
   filter(!is.na(Family)) %>% 
   filter(C >= minColNum)
+
+# add island level colony median size if NA 
+ga$Median_colony_size <- ifelse(is.na(ga$Median_colony_size) == T, ga$Island_median_colony_size, ga$Median_colony_size)
+ga$Island_median_colony_size <- NULL
 
 # add ID
 ga$HS_ID <- seq(1, nrow(ga), 1)
@@ -207,113 +218,3 @@ bbd$HS_ID <- paste0("BBD_", bbd$HS_ID)
 
 # save data
 save(bbd, file = "Compiled_data/BBD.RData")
-
-
-
-# check frequency of disease observations
-# WSfreq <- data.frame(table(gbr$WS))
-# GAfreq <- data.frame(table(gbr$GA))
-# BBDfreq <- data.frame(table(gbr$BBD))
-
-# # save historical prevalence data for all diseases -----------------------------------------
-# # combine data
-# bbd_long_term_risk <- bbd[,c("Region", "Island", "p")] 
-# ga_long_term_risk <- ga[,c("Region", "Island", "p")] 
-# tls_long_term_risk <- tls[,c("Region", "Island", "p")]
-# long_term_risk <- do.call("rbind", list(bbd_long_term_risk, ga_long_term_risk, tls_long_term_risk))
-# 
-# # format 
-# colnames(long_term_risk)[3] <- "Prevalence"
-# long_term_risk$Disease_type <- c(rep("BBD", nrow(bbd_long_term_risk)), rep("GA", nrow(ga_long_term_risk)), rep("TLS", nrow(tls_long_term_risk)))
-# long_term_risk$Risk <- "Long term"
-# long_term_risk$Region <- as.character(long_term_risk$Region)
-# long_term_risk$Region[long_term_risk$Region=="MHI"|long_term_risk$Region=="NWHI"] <- "Hawaii"
-# long_term_risk$Region[long_term_risk$Region=="MARIAN"] <- "Marianas"
-# long_term_risk$Region[long_term_risk$Region=="SAMOA"] <- "Samoa"
-# long_term_risk$Island[long_term_risk$Island == "French_Frigate_Shoals"] <- "French Frigate"
-# long_term_risk$Island[long_term_risk$Island == "Pearl_and_Hermes"] <- "Pearl & Hermes"
-# 
-# # save data
-# save(long_term_risk, file="Compiled_data/long_term_risk.RData")
-
-# x <- subset(long_term_risk, Region == "Hawaii" & Disease_type == "GA")
-# 
-# ggplot(x, aes(x=Island, y=Prevalence)) + 
-#   geom_boxplot() +
-#   theme_classic() +
-#   ylab("Prevalence") + 
-#   theme(axis.text.x = element_text(angle = 90, hjust = 1))
-# 
-# ggplot(x) + 
-#   geom_density_ridges(aes(x = Prevalence, y = Island), alpha = .3) +
-#   theme_ridges() #+
-#   ylab('') +
-#   theme(axis.title.x = element_text(hjust=0.5)) +
-#   scale_fill_manual(values = c("black", "deepskyblue3")) +
-#   xlim(-0.01,0.15)
-#   
-# 
-# hists <- subset(risk, Disease_type == "GA" & Risk == "nowcast")  
-# ggplot(hists, aes(y = Region)) +
-#     geom_density_ridges(aes(x = Prevalence, fill = Risk), alpha = .3) +
-#     theme_ridges() +
-#     ylab('') +
-#     theme(axis.title.x = element_text(hjust=0.5)) +
-#     scale_fill_manual(values = c("black", "deepskyblue3")) +
-#     xlim(-0.01,0.15)
-
-# Guam coral health surveys (line-intercept transect) and benthic surveys (belt transect)
-# guamRaw <- read.csv("Guam_data/HEALTH_IMPACTS_DATABASE_FOR_NOAA.csv", stringsAsFactors = F, head=T)
-# guamNOAA <- read.csv("Guam_data/LIT_WORKING_TABLE_RAW_DATA_FOR_NOAA.csv", stringsAsFactors = F, head=T)
-# guamCoordinates <- read.csv("Guam_data/GPS_Coordinates.csv", stringsAsFactors = F, head=T)
-# guam.gps <- read.csv("Guam_data/guam_sites_with_gps.csv", head=T)
-
-# Calculate unique surveys and those that occurred prior to 2012
-# esdpre12<- unique(esd0812[,c("LATITUDE", "LONGITUDE", "DATE_", "SITEVISITID", "REEF_ZONE")])
-# esdpost12<- unique(esd1317[,c("LATITUDE", "LONGITUDE", "DATE_", "SITEVISITID", "REEF_ZONE")])
-# hdz<- unique(hicordis[,c("Latitude", "Longitude", "Date", "Site")])
-# hdz$Date <- as.Date(hdz$Date, "%Y-%m-%d")
-# hdzpre12<- subset(hdz, Date < "2012-01-01")
-# guam<- unique(guamRaw[,c("SITE", "DATE")])
-# guam$DATE<- as.Date(guam$DATE, "%m/%d/%Y")
-# guampre12<- subset(guam, DATE < "2012-01-01")
-# 
-# pre12 <- (nrow(esdpre12)+nrow(hdzpre12)+nrow(guampre12))
-# all <- (nrow(esdpre12)+nrow(esdpost12)+nrow(hdz)+nrow(guam))
-# pre12/all
-
-# Characterize species affected by each disease 
-# esd1counts <- ddply(esd0812, .(esd0812$TAXONNAME, esd0812$COND_DESCRIPTION), nrow)
-# names(esd1counts) <- c("Species", "Condition", "Freq")
-# 
-# esd2counts <- ddply(esd1317, .(esd1317$SCIENTIFIC_NAME, esd1317$COND), nrow)
-# names(esd2counts) <- c("Species", "Condition", "Freq")
-# 
-# hdzcounts <- ddply(hicordis, .(hicordis$Species, hicordis$Disease_Type), nrow)
-# names(hdzcounts) <- c("Species", "Condition", "Freq")
-# 
-# counts <- rbind(esd1counts, esd2counts, hdzcounts)
-# counts$Condition <- gsub("Acute Tissue Loss - White Syndrome|Sub-acute Tissue Loss|Tissue_Loss|Acute_Tissue_Loss|White_Syndrome|TLS|WSY", "Tissue_loss", counts$Condition)
-# counts$Condition <- gsub("Skeletal Growth Anomalies|SGA", "Growth_anomalies", counts$Condition)
-# counts <- subset(counts, Condition == "Tissue_loss"|Condition == "Growth_anomalies"|Condition == "Black_band_disease")
-# counts <- subset(counts, Species != "NA")
-# 
-# # https://www.r-graph-gallery.com/79-levelplot-with-ggplot2.html
-# library(ggplot2)
-# 
-# ggplot(counts, aes(Species, Condition, fill=Freq)) + 
-#   geom_tile() +
-#   theme_bw() +
-#   theme(axis.text.x = element_text(angle = 90, hjust = 1))
-# 
-# counts2 <- subset(counts, Freq > 100)
-# 
-# ggplot(counts2, aes(Species, Condition, fill=Freq)) + 
-#   geom_tile() +
-#   theme_bw() +
-#   theme(axis.text.x = element_text(angle = 90, hjust = 1))
-# 
-# counts_orig <- rbind(esd1counts, esd2counts, hdzcounts)
-# x <- setdiff(counts_orig$Species, counts$Species)
-# # 196 species affected
-# # 169 species not affected
