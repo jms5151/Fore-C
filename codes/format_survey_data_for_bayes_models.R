@@ -4,35 +4,69 @@ rm(list=ls()) #remove previous variable assignments
 # load data ---------------------------
 source("codes/initial_survey_formatting.R")
 
+# vector of column names
+final_column_names <- c("Date", "Latitude", "Longitude", "Region", "Island", "Family", "Project", "C", "Y", "p", "Median_colony_size", "Coral_cover")
+
+# minimum number of host colonies per transect
+minColNum <- 5
+
 # White syndromes ------------------------------ 
 # NOAA Ecosystem Science Division data
 ws_esd0812 <- esd0812 %>% 
-  group_by(Date, LATITUDE, LONGITUDE, REGION, ISLAND, Family) %>%
-  summarize(Project = "NOAA", C = length(COND_DESCRIPTION), Y = sum(COND_DESCRIPTION=="Sub-acute Tissue Loss"|COND_DESCRIPTION=="Acute Tissue Loss - White Syndrome"), p=Y/C) 
+  group_by(Date, Latitude, Longitude, Region, Island, Family) %>%
+  summarize(Project = "NOAA", 
+            C = length(Cond_description), 
+            Y = sum(Cond_description == "Sub-acute Tissue Loss" | Cond_description == "Acute Tissue Loss - White Syndrome"), 
+            p = Y/C, 
+            Median_colony_size = median(Colonylength, na.rm = T),
+            Coral_cover = NA
+            )
 
 ws_esd1317 <- esd1317 %>%
-  group_by(Date, LATITUDE, LONGITUDE, REGION, ISLAND, Family) %>%
-  summarize(Project = "NOAA", C = length(COND), Y = sum(COND=="TLS"|COND=="WSY"), p=Y/C) 
+  group_by(Date, Latitude, Longitude, Region, Island, Family) %>%
+  summarize(Project = "NOAA", 
+            C = length(Cond), 
+            Y = sum(Cond == "TLS" | Cond == "WSY"), 
+            p = Y/C, 
+            Median_colony_size = median(Colonylength, na.rm = T),
+            Coral_cover = NA
+            )
 
 # Hawaii coral disease database data
 ws_hicordis <- hicordis %>%
   group_by(Date, Latitude, Longitude, Region, Island, Family, Project) %>%
-  summarize(C = length(Disease_Type), Y = sum(Disease_Type == "Tissue_Loss" | Disease_Type == "White_Syndrome"), p=Y/C)
+  summarize(C = length(Disease_type), 
+            Y = sum(Disease_type == "Tissue_Loss" | Disease_type == "White_Syndrome"), 
+            p = Y/C, 
+            Median_colony_size = median(Colony_length, na.rm = T),
+            Coral_cover = NA
+            )
 
 # Guam data 
-ws_guam <- guamRaw %>%
-  group_by(Date, latitude, longitude, Family) %>%
-  summarize(REGION = "MARIAN", ISLAND = "Guam", Project = "University of Guam", C = length(Species), Y = sum(TL=="TL"|WS=="WS"), p=Y/C)
-ws_guam <- ws_guam[,c("Date", "latitude", "longitude", "REGION", "ISLAND", "Family", "Project", "C", "Y", "p")] # reorder for combining below
+ws_guam <- guam %>%
+  group_by(Date, Latitude, Longitude, Family) %>%
+  summarize(Region = "MARIAN", 
+            Island = "Guam", 
+            Project = "University of Guam", 
+            C = length(Species), 
+            Y = sum(Tl == "TL" | Ws == "WS"), 
+            p = Y/C, 
+            Median_colony_size = median(Colony_size, na.rm = T),
+            Coral_cover = NA
+            )
+
+ws_guam <- ws_guam[, final_column_names] # reorder for combining below
 
 # GBR RHIS data
 gbr$C <- NA
 gbr$p <- NA
+gbr$Median_colony_size <- NA
 
 # Maybe only use plate/table for now, and otherwise everything together
-gbr$Y <- gbr$White.Syndromes..Plate.Table.
+gbr$Y <- gbr$White.syndromes..Plate.table.
 gbr$Family <- "Acroporidae"
-ws_gbr <- gbr[,c("Date", "Latitude", "Longitude", "Region", "Island", "Family", "Project", "C", "Y", "p")]
+gbr$Coral_cover <- gbr$Plate.table.coral....Total.
+ws_gbr <- gbr[, final_column_names]
 # gbr$Y <- rowSums(gbr[, c("White.Syndromes..Branching.", "White.Syndromes..Plate.Table.", "White.Syndromes..Vase.Foliose.")])
 # gbr$Family <- "Short-lived morphologies"
 # ws_gbr_r <- gbr[,c("Date", "Latitude", "Longitude", "Region", "Island", "Family", "Project", "C", "Y", "p")]
@@ -44,133 +78,137 @@ ws_gbr <- gbr[,c("Date", "Latitude", "Longitude", "Region", "Island", "Family", 
 # ws_gbr <- rbind(ws_gbr_r, ws_gbr_K)
 
 # merge data
-ws <- rbindlist(list(ws_esd0812, ws_esd1317, ws_hicordis, ws_guam, ws_gbr), use.names = F)
-colnames(ws) <- c("Date", "Latitude", "Longitude", "Region", "Island", "Family", "Project", "C", "Y", "p")
+ws <- rbindlist(list(ws_esd0812, ws_esd1317, ws_hicordis, ws_guam, ws_gbr))
 
 # filter 
-ws <- ws %>% filter(!is.na(Family))
+ws <- ws %>% 
+  filter(!is.na(Family)) %>% 
+  filter(C >= minColNum)
 
 # add ID
 ws$HS_ID <- seq(1, nrow(ws), 1)
 ws$HS_ID <- paste0("WS_", ws$HS_ID)
 
 # save data
-save(ws, file="Compiled_data/WS.RData")
+save(ws, file = "Compiled_data/WS.RData")
 
 # growth anomalies ------------------------------------------ 
 # NOAA Ecosystem Science Division data
 ga_esd0812 <- esd0812 %>% 
-  group_by(Date, LATITUDE, LONGITUDE, REGION, ISLAND, Family) %>%
-  summarize(Project = "NOAA", C = length(COND_DESCRIPTION), Y = sum(COND_DESCRIPTION=="Skeletal Growth Anomalies"), p=Y/C)
+  group_by(Date, Latitude, Longitude, Region, Island, Family) %>%
+  summarize(Project = "NOAA", 
+            C = length(Cond_description), 
+            Y = sum(Cond_description == "Skeletal Growth Anomalies"), 
+            p = Y/C,
+            Median_colony_size = median(Colonylength, na.rm = T),
+            Coral_cover = NA
+            )
 
 ga_esd1317 <- esd1317 %>%
-  group_by(Date, LATITUDE, LONGITUDE, REGION, ISLAND, Family) %>%
-  summarize(Project = "NOAA", C = length(COND), Y = sum(COND=="SGA"), p=Y/C)
+  group_by(Date, Latitude, Longitude, Region, Island, Family) %>%
+  summarize(Project = "NOAA", 
+            C = length(Cond), 
+            Y = sum(Cond == "SGA"), 
+            p = Y/C,
+            Median_colony_size = median(Colonylength, na.rm = T),
+            Coral_cover = NA
+            )
 
 # Hawaii coral disease database data
 ga_hicordis <- hicordis %>%
   group_by(Date, Latitude, Longitude, Region, Island, Family, Project) %>%
-  summarize(C = length(Disease_Type), Y = sum(GA==1), p=Y/C)
+  summarize(C = length(Disease_type), 
+            Y = sum(Ga == 1), 
+            p = Y/C,
+            Median_colony_size = median(Colony_length, na.rm = T),
+            Coral_cover = NA
+            )
 
 # Guam surveys 
-ga_guam <- guamRaw %>%
-  group_by(SITE, Date, latitude, longitude, Family) %>%
-  summarize(REGION = "MARIAN", ISLAND = "Guam", Project = "University of Guam", C = length(Species), Y = sum(TL=="TL"|WS=="WS"), p=Y/C)
-ga_guam <- ga_guam[,c("Date", "latitude", "longitude", "REGION", "ISLAND", "Family", "Project", "C", "Y", "p")] # reorder for combining below
+ga_guam <- guam %>%
+  group_by(Date, Latitude, Longitude, Family) %>%
+  summarize(Region = "MARIAN", 
+            Island = "Guam", 
+            Project = "University of Guam", 
+            C = length(Species), 
+            Y = sum(Ga == "GA"), 
+            p = Y/C,
+            Median_colony_size = median(Colony_size, na.rm = T),
+            Coral_cover = NA
+            )
+
+ga_guam <- ga_guam[, final_column_names]
 
 # RHIS surveys
-gbr$Y <- gbr$Other.disease..tumors.. 
+gbr$Y <- gbr$Other.disease..Tumors.. 
 gbr$Family <- "All morphologies combined"
-ga_gbr <- gbr[,c("Date", "Latitude", "Longitude", "Region", "Island", "Family", "Project", "C", "Y", "p")]
+gbr$Median_colony_size <- NA
+gbr$Coral_cover <- gbr$Live.coral
+ga_gbr <- gbr[, final_column_names]
 
 # merge data
-ga <- rbindlist(list(ga_esd0812, ga_esd1317, ga_hicordis, ga_guam, ga_gbr), use.names = F)
-colnames(ga) <- c("Date", "Latitude", "Longitude", "Region", "Island", "Family", "Project", "C", "Y", "p")
+ga <- rbindlist(list(ga_esd0812, ga_esd1317, ga_hicordis, ga_guam, ga_gbr))
 
 # filter 
-ga <- ga %>% filter(!is.na(Family))
+ga <- ga %>% 
+  filter(!is.na(Family)) %>% 
+  filter(C >= minColNum)
 
 # add ID
 ga$HS_ID <- seq(1, nrow(ga), 1)
 ga$HS_ID <- paste0("GA_", ga$HS_ID)
 
 # save data
-save(ga, file="Compiled_data/GA.RData")
+save(ga, file = "Compiled_data/GA.RData")
 
 # Black band disease -------------------------------------------- 
 # Hawaii coral disease database data
 bbd_hicordis <- hicordis %>%
   group_by(Date, Latitude, Longitude, Region, Island, Family, Project) %>%
-  summarize(C = length(Disease_Type), Y = sum(Disease_Type=="Black_band_disease"), p=Y/C) %>%
+  summarize(C = length(Disease_type), 
+            Y = sum(Disease_type == "Black_band_disease"), 
+            p = Y/C,
+            Median_colony_size = median(Colony_length, na.rm = T),
+            Coral_cover = NA
+            ) %>%
   filter(Island == "Kauai")
 
 # Guam surveys 
-bbd_guam <- guamRaw %>%
-  group_by(Date, latitude, longitude, Family) %>%
-  summarize(Region = "MARIAN", Island = "Guam", Project = "University of Guam", C = length(Species), Y = sum(BBD=="BBD"), p=Y/C)
-bbd_guam <- bbd_guam[,c("Date", "latitude", "longitude", "Region", "Island", "Family", "Project", "C", "Y", "p")] # reorder for combining below
+bbd_guam <- guam %>%
+  group_by(Date, Latitude, Longitude, Family) %>%
+  summarize(Region = "MARIAN", 
+            Island = "Guam", 
+            Project = "University of Guam", 
+            C = length(Species), 
+            Y = sum(Bbd == "BBD"), 
+            p = Y/C,
+            Median_colony_size = median(Colony_size, na.rm = T),
+            Coral_cover = NA
+            )
+bbd_guam <- bbd_guam[, final_column_names] # reorder for combining below
 
 # GBR surveys
-bbdNames <- names(gbr[grep("^Black.Band",names(gbr))])
+bbdNames <- names(gbr[grep("^Black.band",names(gbr))])
 gbr$Y <- rowSums(gbr[,bbdNames[2:length(bbdNames)]])
 gbr$Family <- "All morphologies combined"
-bbd_gbr <- gbr[,c("Date", "Latitude", "Longitude", "Region", "Island", "Family", "Project", "C", "Y", "p")]
+bbd_gbr <- gbr[, final_column_names]
 
 # merge data
-bbd <- rbindlist(list(bbd_hicordis, bbd_guam, bbd_gbr), use.names = F)
+bbd <- rbindlist(list(bbd_hicordis, bbd_guam, bbd_gbr))
 
 # filter 
-bbd <- bbd %>% filter(!is.na(Family))
+bbd <- bbd %>% 
+  filter(!is.na(Family)) %>% 
+  filter(C >= minColNum)
 
 # add ID
 bbd$HS_ID <- seq(1, nrow(bbd), 1)
 bbd$HS_ID <- paste0("BBD_", bbd$HS_ID)
 
 # save data
-save(bbd, file="Compiled_data/BBD.RData")
+save(bbd, file = "Compiled_data/BBD.RData")
 
-# extract unique surveys by lat/lon/date ---------------------------------------------------
-surveys <- tls[, c("Date", "Longitude", "Latitude", "Region", "HS_ID")] %>%
-  full_join(ga[, c("Date", "Longitude", "Latitude", "Region", "HS_ID")], by = c("Date", "Longitude", "Latitude", "Region")) %>%
-  full_join(bbd[, c("Date", "Longitude", "Latitude", "Region", "HS_ID")], by = c("Date", "Longitude", "Latitude", "Region"))
 
-colnames(surveys)[5:7] <- c("WS_ID", "GA_ID", "BBD_ID")
-
-URegions <- unique(surveys$Region)
-
-for(i in URegions){
-  df <- subset(surveys, Region == i)
-  write.csv(df, paste(i, "_survey_coordinates_JMC_", Sys.Date(), ".csv"), row.names = F)
-}
-
-# combine all disease data -----------------------------------------------------------------
-observations <- rbindlist(list(bbd, ga, ws))
-
-# format columns
-colnames(observations)[10] <- "Prevalence"
-observations$Disease_type <- c(rep("BBD", nrow(bbd)), rep("GA", nrow(ga)), rep("WS", nrow(ws)))
-observations$Year <- format(observations$Date, "%Y")
-
-# format region
-observations$Region <- as.character(observations$Region)
-observations$Region[observations$Region=="MHI"|observations$Region=="NWHI"] <- "Hawaii"
-observations$Region[observations$Region=="MARIAN"] <- "Marianas"
-observations$Region[observations$Region=="SAMOA"] <- "Samoa"
-
-# format island
-observations$Island <- as.character(observations$Island)
-observations$Island[observations$Island == "French_Frigate_Shoals"] <- "French Frigate"
-observations$Island[observations$Island == "Pearl_and_Hermes"] <- "Pearl & Hermes"
-observations$Island <- ifelse(observations$Region == "GBR", "", observations$Island)
-  
-# format data source
-observations$Project[observations$Project=="Aeby_Kenyon"|observations$Project=="Burns"|observations$Project=="Caldwell"|observations$Project=="Kenyon"|observations$Project=="Ross"|observations$Project=="Runyon"|observations$Project=="Walsh"|observations$Project=="Walton"] <- "University of Hawaii"
-observations$Project[observations$Project=="Couch"] <- "Cornell University"
-observations$Project[observations$Project=="White"] <- "Hawaii Division of Aquatic Resources"
-observations$Project[observations$Project=="CRED"] <- "NOAA"
-
-# save
-save(observations, file="Compiled_data/observational_data.RData")
 
 # check frequency of disease observations
 # WSfreq <- data.frame(table(gbr$WS))
