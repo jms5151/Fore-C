@@ -21,7 +21,8 @@ ws_esd0812 <- esd0812 %>%
             p = Y/C, 
             Median_colony_size = median(Colonylength, na.rm = T),
             Coral_cover = NA
-            )
+            ) %>% 
+  filter(C >= minColNum)
 
 ws_esd1317 <- esd1317 %>%
   group_by(Date, Latitude, Longitude, Region, Island, Family) %>%
@@ -31,7 +32,8 @@ ws_esd1317 <- esd1317 %>%
             p = Y/C, 
             Median_colony_size = median(Colonylength, na.rm = T),
             Coral_cover = NA
-            )
+            ) %>% 
+  filter(C >= minColNum)
 
 # Hawaii coral disease database data
 ws_hicordis <- hicordis %>%
@@ -41,7 +43,8 @@ ws_hicordis <- hicordis %>%
             p = Y/C, 
             Median_colony_size = median(Colony_length, na.rm = T),
             Coral_cover = NA
-            )
+            ) %>% 
+  filter(C >= minColNum)
 
 # Guam data 
 ws_guam <- guam %>%
@@ -54,7 +57,8 @@ ws_guam <- guam %>%
             p = Y/C, 
             Median_colony_size = median(Colony_size, na.rm = T),
             Coral_cover = NA
-            )
+            ) %>% 
+  filter(C >= minColNum)
 
 ws_guam <- ws_guam[, final_column_names] # reorder for combining below
 
@@ -84,8 +88,7 @@ ws <- rbindlist(list(ws_esd0812, ws_esd1317, ws_hicordis, ws_guam, ws_gbr))
 # filter 
 ws <- ws %>% 
   left_join(median_sizes, by = c("Island", "Family")) %>%
-  filter(!is.na(Family)) %>% 
-  filter(C >= minColNum)
+  filter(!is.na(Family))
 
 # add island level colony median size if NA 
 ws$Median_colony_size <- ifelse(is.na(ws$Median_colony_size) == T, ws$Island_median_colony_size, ws$Median_colony_size)
@@ -108,7 +111,8 @@ ga_esd0812 <- esd0812 %>%
             p = Y/C,
             Median_colony_size = median(Colonylength, na.rm = T),
             Coral_cover = NA
-            )
+            ) %>% 
+  filter(C >= minColNum)
 
 ga_esd1317 <- esd1317 %>%
   group_by(Date, Latitude, Longitude, Region, Island, Family) %>%
@@ -118,7 +122,8 @@ ga_esd1317 <- esd1317 %>%
             p = Y/C,
             Median_colony_size = median(Colonylength, na.rm = T),
             Coral_cover = NA
-            )
+            ) %>% 
+  filter(C >= minColNum)
 
 # Hawaii coral disease database data
 ga_hicordis <- hicordis %>%
@@ -128,7 +133,8 @@ ga_hicordis <- hicordis %>%
             p = Y/C,
             Median_colony_size = median(Colony_length, na.rm = T),
             Coral_cover = NA
-            )
+            ) %>% 
+  filter(C >= minColNum)
 
 # Guam surveys 
 ga_guam <- guam %>%
@@ -141,7 +147,8 @@ ga_guam <- guam %>%
             p = Y/C,
             Median_colony_size = median(Colony_size, na.rm = T),
             Coral_cover = NA
-            )
+            ) %>% 
+  filter(C >= minColNum)
 
 ga_guam <- ga_guam[, final_column_names]
 
@@ -158,8 +165,7 @@ ga <- rbindlist(list(ga_esd0812, ga_esd1317, ga_hicordis, ga_guam, ga_gbr))
 # filter 
 ga <- ga %>% 
   left_join(median_sizes, by = c("Island", "Family")) %>%
-  filter(!is.na(Family)) %>% 
-  filter(C >= minColNum)
+  filter(!is.na(Family))
 
 # add island level colony median size if NA 
 ga$Median_colony_size <- ifelse(is.na(ga$Median_colony_size) == T, ga$Island_median_colony_size, ga$Median_colony_size)
@@ -182,7 +188,8 @@ bbd_hicordis <- hicordis %>%
             Median_colony_size = median(Colony_length, na.rm = T),
             Coral_cover = NA
             ) %>%
-  filter(Island == "Kauai")
+  filter(Island == "Kauai") %>% 
+  filter(C >= minColNum)
 
 # Guam surveys 
 bbd_guam <- guam %>%
@@ -195,7 +202,8 @@ bbd_guam <- guam %>%
             p = Y/C,
             Median_colony_size = median(Colony_size, na.rm = T),
             Coral_cover = NA
-            )
+            ) %>% 
+  filter(C >= minColNum)
 bbd_guam <- bbd_guam[, final_column_names] # reorder for combining below
 
 # GBR surveys
@@ -209,8 +217,7 @@ bbd <- rbindlist(list(bbd_hicordis, bbd_guam, bbd_gbr))
 
 # filter 
 bbd <- bbd %>% 
-  filter(!is.na(Family)) %>% 
-  filter(C >= minColNum)
+  filter(!is.na(Family))
 
 # add ID
 bbd$HS_ID <- seq(1, nrow(bbd), 1)

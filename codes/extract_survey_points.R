@@ -21,4 +21,9 @@ surveys <- rbindlist(list(esd0812[, survey_colnames],
 surveys <- unique(surveys)
 
 # save data
+save(surveys, file = "Compiled_data/Survey_points_with_dates.RData")
+
+# subset to locations only
+surveys <- surveys[, c("Latitude", "Longitude")]
+surveys <- unique(surveys)
 save(surveys, file = "Compiled_data/Survey_points.RData")

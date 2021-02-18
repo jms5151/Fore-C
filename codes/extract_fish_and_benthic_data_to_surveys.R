@@ -12,7 +12,7 @@ library(raster)
 load("Compiled_data/Benthic_cover_by_noaa_sector.RData")
 load("Compiled_data/Fish_abundance_by_noaa_sector.RData")
 r = raster("Data/GBR_LTMP_Fish-Herbiores/LTMP_Fish-Herbivores-Value.asc") 
-load("Compiled_data/survey_points_for_map.RData")
+load("Compiled_data/Survey_points.RData")
 shapename <- read_sf('Data/NOAA_shapefiles/ALLPacific_Sectors_Islands.shp')
 
 # NOAA data ----------------------------------------------------------------
@@ -44,5 +44,7 @@ fish_gbr <- cbind(surveys, "Fish_abund" = fish)
 # merge and save data -----------------------------------------------------
 benthic_and_fish_data <- noaa_benthic_and_fish %>%
   left_join(fish_gbr, by = c("Latitude", "Longitude"))
+
+benthic_and_fish_data <- unique(benthic_and_fish_data)
 
 save(benthic_and_fish_data, file = "Compiled_data/surveys_with_benthic_and_fish_data.RData")

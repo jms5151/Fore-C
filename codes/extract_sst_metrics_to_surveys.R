@@ -6,7 +6,7 @@ library(zoo)
 library(raster)
 
 # load surey data
-load("Compiled_data/Survey_points.RData")
+load("Compiled_data/Survey_points_with_dates.RData")
 
 # SST anomalies ------------------------------------
 surveyDatesRaw <- sort(unique(surveys$Date))
@@ -30,6 +30,7 @@ for(i in 1:length(surveyDates)){
 
 # format and merge sst.df data with original survey data
 sstaDF <- read_csv(newFileName)
+# calculate max anomaly in prior 60 days
 surveys_ssta <- surveys %>% left_join(sstaDF, by = c("Date", "Latitude", "Longitude"))
 # surveys_ssta <- merge(surveys, sstaDF, by = c("Date", "Latitude", "Longitude"), all.x = T)
 save(surveys_ssta, file = "Compiled_data/SSTa_surveys.RData")
@@ -65,4 +66,4 @@ for(i in 1:length(surveyDates2)){
 
 surveys_sst <- read_csv("Compiled_data/sst_surveys.csv")
 surveys_sst$SST_mean90d <- rollapply(surveys_sst$SST, width = 90, FUN = mean, align = "right", fill = NA, na.rm = T) 
-save(surveys_sst, file = "Compiled_data/SST_surveys.RData")
+save(surveys_sst, file = "Compiled_data/sst_surveys_90dMean.RData")

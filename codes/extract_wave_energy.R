@@ -25,4 +25,8 @@ for(i in 1:length(msec_files)){
   wave_data <- rbind(wave_data, x)
 }
 
+colnames(wave_data)[which(colnames(wave_data) == "long")] <- "Longitude"
+colnames(wave_data)[which(colnames(wave_data) == "lat")] <- "Latitude"
+wave_data <- unique(wave_data)
+
 write.csv(wave_data, "Compiled_data/msec_out_wave.csv", row.names = F)

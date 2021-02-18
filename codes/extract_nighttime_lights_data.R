@@ -1,4 +1,33 @@
 # extract nasa night time lights values for coral regions ---------------------- 
+
+# load libraries
+library(raster)
+
+# load data
+nightLights <- brick("Data/BlackMarble_2016_3km_geo.tif")
+load("Compiled_data/Survey_points.RData")
+
+# extract nighttime lights data
+nightlights <- extract(nightLights, cbind(surveys$Longitude, surveys$Latitude))
+
+# merge data
+reef_nightlights <- cbind(surveys, nightlights)
+
+# save data
+save(reef_nightlights, file = "Compiled_data/Night_Lights.RData")
+
+# visualize
+library(ggplot2)
+library(viridis)
+
+ggplot() +
+  geom_raster(data = x , aes(x = Longitude, y = Latitude, fill = BlackMarble_2016_3km_geo)) +
+  scale_fill_viridis_c() +
+  coord_quickmap() + 
+  scale_x_continuous(limits = c(-180, 180))
+
+
+# extract nasa night time lights values for coral regions ---------------------- 
 # https://gist.github.com/giacfalk/33e78e64161ae532390052dc578d6197
 
 library(raster)
@@ -49,15 +78,27 @@ r = band2Raster(file = f, noDataValue = myNoDataValue, xMin = xMin, yMin = yMin,
 # save raster
 writeRaster(r, "Data/nightlights.tif")
 
+# raster to data frame
+nightLights_df <- as.data.frame(r, xy = TRUE)
+
+# subset lat/lon to region of interest
+nightLights_df <- subset(nightLights_df, x <= -120 | x >= 140 & y <= 30 & y >= -30)
+
+# rename columns
+colnames(nightLights_df) <- c("Longitude", "Latitude", "Nighttime_lights")
+
+# replace 65535 with NA
+nightLights_df$Nighttime_lights[nightLights_df$Nighttime_lights == 65535] <- NA
+
 # save data
-# save(nightLights_df, file="Compiled_data/Night_Lights.RData")
+save(nightLights_df, file="Compiled_data/Night_Lights.RData")
 
 # visualize
-# library(ggplot2)
-# library(viridis)
-# 
-# ggplot() +
-#   geom_raster(data = x , aes(x = Longitude, y = Latitude, fill = BlackMarble_2016_3km_geo)) +
-#   scale_fill_viridis_c() +
-#   coord_quickmap() + 
-#   scale_x_continuous(limits = c(-180, 180))
+library(ggplot2)
+library(viridis)
+
+ggplot() +
+  geom_raster(data = nightLights_df , aes(x = Longitude, y = Latitude, fill = Nighttime_lights)) +
+  scale_fill_viridis_c() +
+  coord_quickmap() +
+  scale_x_continuous(limits = c(-180, 180))
