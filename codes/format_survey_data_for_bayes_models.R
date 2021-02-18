@@ -88,7 +88,8 @@ ws <- rbindlist(list(ws_esd0812, ws_esd1317, ws_hicordis, ws_guam, ws_gbr))
 # filter 
 ws <- ws %>% 
   left_join(median_sizes, by = c("Island", "Family")) %>%
-  filter(!is.na(Family))
+  filter(!is.na(Family)) %>%
+  filter(!is.na(Y))
 
 # add island level colony median size if NA 
 ws$Median_colony_size <- ifelse(is.na(ws$Median_colony_size) == T, ws$Island_median_colony_size, ws$Median_colony_size)
@@ -165,7 +166,8 @@ ga <- rbindlist(list(ga_esd0812, ga_esd1317, ga_hicordis, ga_guam, ga_gbr))
 # filter 
 ga <- ga %>% 
   left_join(median_sizes, by = c("Island", "Family")) %>%
-  filter(!is.na(Family))
+  filter(!is.na(Family)) %>%
+  filter(!is.na(Y))
 
 # add island level colony median size if NA 
 ga$Median_colony_size <- ifelse(is.na(ga$Median_colony_size) == T, ga$Island_median_colony_size, ga$Median_colony_size)
@@ -217,7 +219,8 @@ bbd <- rbindlist(list(bbd_hicordis, bbd_guam, bbd_gbr))
 
 # filter 
 bbd <- bbd %>% 
-  filter(!is.na(Family))
+  filter(!is.na(Family)) %>%
+  filter(!is.na(Y))
 
 # add ID
 bbd$HS_ID <- seq(1, nrow(bbd), 1)
