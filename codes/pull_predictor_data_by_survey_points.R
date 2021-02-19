@@ -19,11 +19,19 @@ GA_data <- ga %>%
   left_join(reef_nightlights, by = c("Latitude", "Longitude")) %>%
   left_join(wave_data, by = c("Latitude", "Longitude"))
 
+# format and save
+GA_data$Region <- as.character(GA_data$Region)
+GA_data$Month <- format(GA_data$Date, "%m")
+
 save(GA_data, file = "Compiled_data/GA_with_predictors.RData")
 
 # White syndromes ----------------------------------------------------------------
 WS_data <- ws %>%
   left_join(benthic_and_fish_data, by = c("Latitude", "Longitude")) %>%
   left_join(wave_data, by = c("Latitude", "Longitude"))
+
+# format and save
+WS_data$Region <- as.character(WS_data$Region)
+WS_data$Month <- format(WS_data$Date, "%m")
 
 save(WS_data, file = "Compiled_data/WS_with_predictors.RData")
