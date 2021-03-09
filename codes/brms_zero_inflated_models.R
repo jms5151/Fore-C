@@ -12,6 +12,197 @@ library(bayesplot)
 load("Compiled_data/GA_with_predictors.RData")
 load("Compiled_data/WS_with_predictors.RData")
 
+# GA Pacific -----------------------------------------------
+ga_pac <- subset(GA_data, Region != "GBR" & Family == "Poritidae")
+ga_pac <- ga_pac[, c("Y", "C", "Region", "Month", "Median_colony_size", "Poritidae_mean_cover", "H_abund", "wave_mean", "wave_sd", "SST_90dMean", "BlackMarble_2016_3km_geo.1")]
+ga_pac <- ga_pac[complete.cases(ga_pac), ]
+
+gaPac_SizeFishSST <- brm(bf(Y|trials(C) ~ scale(Median_colony_size) +
+                                     # scale(Poritidae_mean_cover) +
+                                     scale(H_abund) +
+                                     # scale(wave_mean) +
+                                     scale(SST_90dMean) #+
+                                     # Region +
+                                     # Month
+                                   ),
+                                data = ga_pac,
+                                family = zero_inflated_binomial(),
+                                chains = 2)
+
+conditional_effects(gaPac_SizeFishSST)
+summary(gaPac_SizeFishSST)
+
+saveRDS(gaPac_SizeFishSST, file = "Compiled_data/model_objects/gaPac_SizeFishSST.Rds")
+
+# Make dataset to predict on
+medColSize = seq(min(ga_pac$Median_colony_size), max(ga_pac$Median_colony_size)*1.5, 10)
+FishAbundance = seq(0.01, round(max(ga_pac$H_abund)*2), 0.1)
+SST = seq(round(min(ga_pac$SST_90dMean)-3), round(max(ga_pac$SST_90dMean)+3), 0.5)
+
+newdata <- expand.grid("Median_colony_size" = medColSize,
+                       "H_abund" = FishAbundance,
+                       "SST_90dMean" = SST,
+                       KEEP.OUT.ATTRS = T)
+
+# library(msm)
+# test <- rtnorm(n = nrow(newdata), mean = mean(ga_pac$C), sd = sd(ga_pac$C[ga_pac$C<1500]), lower = 5, upper = Inf)
+# hist(test)
+newdata$C <- rnbinom(n = nrow(newdata), size = 2, mu = mean(ga_pac$C))
+# newdata$C <- round(rlnorm(n = nrow(newdata), mean = mean(log(ga_pac$C)), sd = sd(log(ga_pac$C[ga_pac$C<1500]))))
+sum(newdata$C < 5)
+newdata$C[newdata$C < 5] <- 5
+# plot(newdata$Colonies)
+# hist(newdata$Colonies)
+# hist(ga_pac$C)
+prev <- mean(ga_pac$Y/ga_pac$C)
+newdata$Y <- rbinom(n = nrow(newdata), size = newdata$C, prob = prev) 
+range(newdata$Y)
+# hist(newdata$diseasedColonies)           
+# hist(ga_pac$Y)                 
+
+gaPac_SizeFishSST <- readRDS("Compiled_data/model_objects/gaPac_SizeFishSST.Rds")
+ga_predictions <- predict(gaPac_SizeFishSST, newdata = newdata, nsamples = 2000)
+
+save(ga_predictions, file = "Compiled_data/ga_pacific_predictions.RData")
+
+
+# ----------------
+gaPac_SizeCovWaveMean <- brm(bf(Y|trials(C) ~ scale(Median_colony_size) +
+                              scale(Poritidae_mean_cover) +
+                              # scale(H_abund) +
+                              scale(wave_mean) #+
+                              # scale(SST_90dMean) +
+                              # Region +
+                            # Month
+                            ),
+                         data = ga_pac,
+                         family = zero_inflated_binomial(),
+                         chains = 2)
+
+conditional_effects(gaPac_SizeCovWaveMean)
+summary(gaPac_SizeCovWaveMean)
+
+saveRDS(gaPac_SizeCovWaveMean, file = "Compiled_data/model_objects/gaPac_SizeCovWaveMean.Rds")
+
+gaPac_SizeRegionMonth <- brm(bf(Y|trials(C) ~ scale(Median_colony_size) +
+                                Region +
+                                Month),
+                             data = ga_pac,
+                             family = zero_inflated_binomial(),
+                             chains = 2)
+
+conditional_effects(gaPac_SizeRegionMonth)
+summary(gaPac_SizeRegionMonth)
+
+saveRDS(gaPac_SizeRegionMonth, file = "Compiled_data/model_objects/gaPac_SizeRegionMonth.Rds")
+
+
+options(mc.cores=4)
+gaPac_SizeFishCovWaveMean <- brm(bf(Y|trials(C) ~ scale(Median_colony_size) +
+                                             scale(H_abund) + 
+                                             scale(Poritidae_mean_cover) +
+                                             scale(wave_mean)
+                                ),
+                             data = ga_pac,
+                             family = zero_inflated_binomial(),
+                             chains = 2)
+
+conditional_effects(gaPac_SizeFishCovWaveMean)
+summary(gaPac_SizeFishCovWaveMean)
+
+saveRDS(gaPac_SizeFishCovWaveMean, file = "Compiled_data/model_objects/gaPac_SizeFishCovWaveMean.Rds")
+
+
+options(mc.cores=6)
+gaPac_SizeFishCovWaveMeanSSTRegion <- brm(bf(Y|trials(C) ~ scale(Median_colony_size) +
+                                  scale(H_abund) +
+                                  scale(Poritidae_mean_cover) +
+                                  scale(wave_mean) +
+                                  scale(SST_90dMean) +
+                                  Region
+                                ),
+                             data = ga_pac,
+                             family = zero_inflated_binomial(),
+                             chains = 2)
+
+conditional_effects(gaPac_SizeFishCovWaveMeanSSTRegion)
+summary(gaPac_SizeFishCovWaveMeanSSTRegion)
+
+saveRDS(gaPac_SizeFishCovWaveMeanSSTRegion, file = "Compiled_data/model_objects/gaPac_SizeFishCovWaveMeanSSTRegion.Rds")
+
+model_weights(gaPac_SizeFishSST, gaPac_SizeCovWaveMean, gaPac_SizeRegionMonth, gaPac_SizeFishCovWaveMean, gaPac_SizeFishCovWaveMeanSSTRegion,
+              weights = "loo")
+
+options(mc.cores=7)
+gaPac_SizeFishCovWaveMeanSSTMonth <- brm(bf(Y|trials(C) ~ scale(Median_colony_size) +
+                                                    scale(H_abund) +
+                                                    scale(Poritidae_mean_cover) +
+                                                    scale(wave_mean) +
+                                                    scale(SST_90dMean) +
+                                                    Month
+                                               ),
+                                               data = ga_pac,
+                                               family = zero_inflated_binomial(),
+                                               chains = 2)
+
+conditional_effects(gaPac_SizeFishCovWaveMeanSSTMonth)
+summary(gaPac_SizeFishCovWaveMeanSSTMonth)
+
+saveRDS(gaPac_SizeFishCovWaveMeanSSTMonth, file = "Compiled_data/model_objects/gaPac_SizeFishCovWaveMeanSSTMonth.Rds")
+
+model_weights(gaPac_SizeFishCovWaveMeanSSTRegion, gaPac_SizeFishCovWaveMeanSSTMonth, weights = "loo")
+
+gaPac_SizeFishCovWaveSDSSTMonth <- brm(bf(Y|trials(C) ~ scale(Median_colony_size) +
+                                              scale(H_abund) +
+                                              scale(Poritidae_mean_cover) +
+                                              scale(wave_sd) +
+                                              scale(SST_90dMean) +
+                                              Month
+                                          ),
+                                       data = ga_pac,
+                                       family = zero_inflated_binomial(),
+                                       chains = 2)
+
+conditional_effects(gaPac_SizeFishCovWaveSDSSTMonth)
+summary(gaPac_SizeFishCovWaveSDSSTMonth)
+
+saveRDS(gaPac_SizeFishCovWaveSDSSTMonth, file = "Compiled_data/model_objects/gaPac_SizeFishCovWaveSDSSTMonth.Rds")
+model_weights(gaPac_SizeFishCovWaveMeanSSTMonth, gaPac_SizeFishCovWaveSDSSTMonth, weights = "loo")
+
+gaPac_SizeFishCovWaveSDSSTRegion <- brm(bf(Y|trials(C) ~ scale(Median_colony_size) +
+                                            scale(H_abund) +
+                                            scale(Poritidae_mean_cover) +
+                                            scale(wave_sd) +
+                                            scale(SST_90dMean) +
+                                            Region
+                                           ),
+                                        data = ga_pac,
+                                        family = zero_inflated_binomial(),
+                                        chains = 2)
+
+conditional_effects(gaPac_SizeFishCovWaveSDSSTRegion)
+summary(gaPac_SizeFishCovWaveSDSSTRegion)
+
+saveRDS(gaPac_SizeFishCovWaveSDSSTRegion, file = "Compiled_data/model_objects/gaPac_SizeFishCovWaveSDSSTRegion.Rds")
+model_weights(gaPac_SizeFishCovWaveSDSSTRegion, gaPac_SizeFishCovWaveSDSSTMonth, weights = "loo")
+
+gaPac_SizeFishWaveSDSSTMonthNight <- brm(bf(Y|trials(C) ~ scale(Median_colony_size) +
+                                             scale(H_abund) +
+                                             scale(BlackMarble_2016_3km_geo.1) +
+                                             scale(wave_sd) +
+                                             scale(SST_90dMean) +
+                                             Month
+                                            ),
+                                         data = ga_pac,
+                                         family = zero_inflated_binomial(),
+                                         chains = 2)
+
+conditional_effects(gaPac_SizeFishWaveSDSSTMonthNight)
+summary(gaPac_SizeFishWaveSDSSTMonthNight)
+
+saveRDS(gaPac_SizeFishWaveSDSSTMonthNight, file = "Compiled_data/model_objects/gaPac_SizeFishWaveSDSSTMonthNight.Rds")
+model_weights(gaPac_SizeFishWaveSDSSTMonthNight, gaPac_SizeFishCovWaveSDSSTMonth, weights = "loo")
+
 # WS GBR ---------------------------------------------------
 ws_gbr <- subset(WS_data, Region == "GBR")
 ws_gbr <- ws_gbr[, c("Y", "Island", "Month", "Coral_cover", "Fish_abund", "wave_mean", "wave_sd")]
@@ -147,8 +338,8 @@ saveRDS(wsPacAcr_Habund_waveMean, file = "Compiled_data/model_objects/wsPacAcr_f
 # format data
 ws_pac_por <- subset(WS_data, Region != "GBR" & Family == "Poritidae")
 ws_pac_por <- ws_pac_por[, c("Y", "C", "Region", "Month", "Median_colony_size", "H_abund",
-                             "Parrotfish_abund", "Butterflyfish_abund",
-                             "Acroporidae_mean_cover", "wave_mean", "wave_sd")]
+                             # "Parrotfish_abund", "Butterflyfish_abund",
+                             "Poritidae_mean_cover", "wave_mean", "wave_sd")]
 ws_pac_por <- ws_pac_por[complete.cases(ws_pac_por), ]
 
 wsPacPor_regionMonthFixed <- brm(bf(Y|trials(C) ~ Region + Month), data = ws_pac_por, family = zero_inflated_binomial(), chains = 3)

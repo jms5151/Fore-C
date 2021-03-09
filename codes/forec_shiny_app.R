@@ -5,6 +5,8 @@ rm(list=ls()) #remove previous variable assignments
 # https://github.com/eparker12/nCoV_tracker/blob/master/app.R
 # https://rstudio-pubs-static.s3.amazonaws.com/307862_b8c8460272dc4a2a9023d033d5f3ec34.html # interactive polygons
 # to use the css I need to download docs: https://shiny.rstudio.com/articles/css.html
+# https://stackoverflow.com/questions/62544187/popupgraph-r-leaflet-why-are-my-popup-graphs-blank OR
+# https://stackoverflow.com/questions/62642615/adding-reactive-popup-graphs-plots-to-a-leaflet-map-with-shiny-r
 
 # load libraries
 library(shiny)
@@ -93,6 +95,22 @@ basemap <- leaflet() %>%
               paste0(legendLabels)
             }
   )
+
+# https://stackoverflow.com/questions/31814037/integrating-time-series-graphs-and-leaflet-maps-using-r-shiny
+library(leafpop)
+load("Compiled_data/spatial_grid.Rds")
+load("Compiled_data/grid.RData")
+
+
+basemap2 <- leaflet() %>%
+  # If you prefer streetmaps uncomment line 18 and comment line 20
+  addTiles(group = "OpenStreetMap") %>%
+  # addTiles(urlTemplate="http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", group = "Satellite") %>%
+  addPolygons(data = reefs2) %>%
+  setView(lng = -156, lat = 20 , zoom = 7)
+
+
+
 
 # historical map
 historicalMap = leaflet() %>%
