@@ -6,7 +6,9 @@
 
 # load libraries
 library(brms)
-library(bayesplot)
+# library(bayesplot)
+
+options(mc.cores=6)
 
 # load data
 load("Compiled_data/GA_with_predictors.RData")
@@ -17,53 +19,65 @@ ga_pac <- subset(GA_data, Region != "GBR" & Family == "Poritidae")
 ga_pac <- ga_pac[, c("Y", "C", "Region", "Month", "Median_colony_size", "Poritidae_mean_cover", "H_abund", "wave_mean", "wave_sd", "SST_90dMean", "BlackMarble_2016_3km_geo.1")]
 ga_pac <- ga_pac[complete.cases(ga_pac), ]
 
-gaPac_SizeFishSST <- brm(bf(Y|trials(C) ~ scale(Median_colony_size) +
-                                     # scale(Poritidae_mean_cover) +
-                                     scale(H_abund) +
-                                     # scale(wave_mean) +
-                                     scale(SST_90dMean) #+
-                                     # Region +
-                                     # Month
-                                   ),
-                                data = ga_pac,
-                                family = zero_inflated_binomial(),
-                                chains = 2)
+mod <- readRDS("Compiled_data/model_objects/gaPac_SizeFishWaveSDSSTMonthNight.Rds")
 
-conditional_effects(gaPac_SizeFishSST)
-summary(gaPac_SizeFishSST)
+# Make data to predict on
+medColSize <- seq(min(ga_pac$Median_colony_size), max(ga_pac$Median_colony_size), by = 30)
+FishAbundance <- seq(0.01, round(max(ga_pac$H_abund)), by = 0.2) # 0.1
+Lights <- seq(0, 255, by = 30)
+waveSD <- seq(min(ga_pac$wave_sd), max(ga_pac$wave_sd), by = 10)
+SST <- seq(round(min(ga_pac$SST_90dMean)-3), round(max(ga_pac$SST_90dMean)), by = 2)
+months <- seq.Date(from = as.Date("2020-01-01"), to = as.Date("2020-12-31"), by = "month")
+months <- format(months, "%m")
 
-saveRDS(gaPac_SizeFishSST, file = "Compiled_data/model_objects/gaPac_SizeFishSST.Rds")
+# create array
+Lcol <- length(medColSize)
+Lfish <- length(FishAbundance)
+Llights <- length(Lights)
+LwaveSD <- length(waveSD)
+Lsst <- length(SST)
+Lmonths <- length(months)
 
-# Make dataset to predict on
-medColSize = seq(min(ga_pac$Median_colony_size), max(ga_pac$Median_colony_size)*1.5, 10)
-FishAbundance = seq(0.01, round(max(ga_pac$H_abund)*2), 0.1)
-SST = seq(round(min(ga_pac$SST_90dMean)-3), round(max(ga_pac$SST_90dMean)+3), 0.5)
+Nunique <- Lcol * Lfish * Llights * LwaveSD * Lsst * Lmonths
+ids <- 1:Nunique
+ids <- paste0("V", ids)
 
-newdata <- expand.grid("Median_colony_size" = medColSize,
-                       "H_abund" = FishAbundance,
-                       "SST_90dMean" = SST,
-                       KEEP.OUT.ATTRS = T)
+newDataArray <- array(data = ids,
+                      dim = c(Lcol, Lfish, Llights, LwaveSD, Lsst, Lmonths),
+                      dimnames = list("Median_colony_size" = medColSize,
+                                      "H_abund" = FishAbundance,
+                                      "BlackMarble_2016_3km_geo.1" = Lights,
+                                      "wave_sd" = waveSD,
+                                      "SST_90dMean" = SST,
+                                      "Month" = months
+                                      )
+                      )
 
-# library(msm)
-# test <- rtnorm(n = nrow(newdata), mean = mean(ga_pac$C), sd = sd(ga_pac$C[ga_pac$C<1500]), lower = 5, upper = Inf)
-# hist(test)
-newdata$C <- rnbinom(n = nrow(newdata), size = 2, mu = mean(ga_pac$C))
-# newdata$C <- round(rlnorm(n = nrow(newdata), mean = mean(log(ga_pac$C)), sd = sd(log(ga_pac$C[ga_pac$C<1500]))))
-sum(newdata$C < 5)
-newdata$C[newdata$C < 5] <- 5
-# plot(newdata$Colonies)
-# hist(newdata$Colonies)
-# hist(ga_pac$C)
-prev <- mean(ga_pac$Y/ga_pac$C)
-newdata$Y <- rbinom(n = nrow(newdata), size = newdata$C, prob = prev) 
-range(newdata$Y)
-# hist(newdata$diseasedColonies)           
-# hist(ga_pac$Y)                 
+# save array for Gang
+save(newDataArray, file = "Compiled_data/Array_for_Gang.Rds")
+load(file = "Compiled_data/Array_for_Gang.Rds")
 
-gaPac_SizeFishSST <- readRDS("Compiled_data/model_objects/gaPac_SizeFishSST.Rds")
-ga_predictions <- predict(gaPac_SizeFishSST, newdata = newdata, nsamples = 2000)
+# format as long dataframe
+newdata <- as.data.frame.table(newDataArray)
+newdata[,1:5] <- lapply(newdata[,1:5], as.character)
+newdata[,1:5] <- lapply(newdata[,1:5], as.numeric)
+newdata$Month <- as.character(newdata$Month)
 
-save(ga_predictions, file = "Compiled_data/ga_pacific_predictions.RData")
+# add simulated number of colonies
+C  <- rnbinom(n = nrow(newdata)*1.5, size = 2, mu = mean(ga_pac$C))
+C <- C[C > 5]
+C <- sample(C, nrow(newdata))
+newdata$C <- C
+
+# predict
+ga_predictions <- predict(mod, newdata = newdata, summary = F)
+
+# calculate prevalence
+prev_predictions <- t(t(ga_predictions)/newdata$C)
+
+# save data for Gang
+outputGang <- as.data.frame(prev_predictions)
+write.csv(outputGang, "Compiled_data/posterior_predictions_Gang.csv", row.names = F)
 
 
 # ----------------
@@ -97,7 +111,6 @@ summary(gaPac_SizeRegionMonth)
 saveRDS(gaPac_SizeRegionMonth, file = "Compiled_data/model_objects/gaPac_SizeRegionMonth.Rds")
 
 
-options(mc.cores=4)
 gaPac_SizeFishCovWaveMean <- brm(bf(Y|trials(C) ~ scale(Median_colony_size) +
                                              scale(H_abund) + 
                                              scale(Poritidae_mean_cover) +
@@ -113,7 +126,7 @@ summary(gaPac_SizeFishCovWaveMean)
 saveRDS(gaPac_SizeFishCovWaveMean, file = "Compiled_data/model_objects/gaPac_SizeFishCovWaveMean.Rds")
 
 
-options(mc.cores=6)
+
 gaPac_SizeFishCovWaveMeanSSTRegion <- brm(bf(Y|trials(C) ~ scale(Median_colony_size) +
                                   scale(H_abund) +
                                   scale(Poritidae_mean_cover) +
