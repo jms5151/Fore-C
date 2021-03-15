@@ -5,7 +5,7 @@
 # Step 3: Interpolating survival probabilities to make them comparable across treatments 
 # Step 4: Overlap all survival curves into a single one by shifting each curve to mean x and y employing z
 # Step 5: Build expected survival curve with mean x and y pooling all data
-# Step 6: Expand expected curve to multiple Ta (with 0.1ÂºC difference for predictive purposes)
+# Step 6: Expand expected curve to multiple Ta (with 0.1ºC difference for predictive purposes)
 
 tolerance_landscape <- function(ta,time){
   # ta = temperature
@@ -82,6 +82,15 @@ tolerance_landscape <- function(ta,time){
        time.obs.pred = cbind(data$time, data$time.pred), rsq = rsq)
   }					
 
+# set.seed(1)
+# ind <- 1000
+# static.temp <- rep(30:32,each=ind)
+# time <- c(runif(ind,0,60),runif(ind,0,30),runif(ind,0,15))
+# tl <- tolerance_landscape(static.temp,time)
+# 
+# variable.temp <- rep(30:32,each=10)
+# dl <- dynamic.landscape(variable.temp,tl)
+
 # Function to estimate survival probability from tolerance landscapes and environmental temperature data
 dynamic_landscape_adjusted <- function(ta, tolerance.landscape){
   surv <- tolerance.landscape$S[,2]
@@ -103,9 +112,41 @@ dynamic_landscape_adjusted <- function(ta, tolerance.landscape){
        xlab = "Time (days)", ylab = "Susceptible (%)")
   list(time = out$time,ta = out$ta, susceptible = out$susceptible)}
 
+
+get_TL_adjusted_slopes <- function(temp, toleranceLandscape){
+  surv <- toleranceLandscape$S[,2]
+  ta.mn <- toleranceLandscape$ta.mn
+  z <- toleranceLandscape$z
+  shift <- 10^((ta.mn - temp)/z)
+  slope_vector <- c()
+  for(i in 1:length(temp)){
+    # create approximated survival curve given any temperature
+    apporox_survival_curve <- approx(c(0, shift[i]*surv), seq(100, 0, length.out = length(c(0, surv))), ties = "mean")
+    # linear regression of log(survival) ~ time
+    mod <- lm(log(apporox_survival_curve$y) ~ apporox_survival_curve$x)
+    # save model slope
+    slope_vector <- c(slope_vector, unname(mod$coefficients[2]))
+  }
+  slope_vector
+}
+
 # test functions
+library(zoo)
+
 strain_temp4 <- read.csv("Vcor/data/strain_temp4.csv")
 t2 <- tolerance_landscape(strain_temp4$Tank_temperature, strain_temp4$Time_to_infection)
 load("Vcor/resp_fun/TempData_Silbiger.RData")
-temp_p <- subset(temp, Region == "Panama")
-dl <- jamie.dynamic.landscape(temp_p$Temp, t2)
+temp_b <- subset(temp, Region == "Bermuda")
+
+bermudaSlopes <- get_TL_adjusted_slopes(temp_b$Temp, t2)
+
+thermal_accum_fun = function(x) { w = length(x):1; sum(x*exp(-0.5/w))}
+
+bermudaWeightedSlopes <- rollapply(bermudaSlopes, 
+                                  width = 90, 
+                                  by = 1, 
+                                  fill = NA, 
+                                  FUN = thermal_accum_fun, 
+                                  by.column = FALSE, 
+                                  align="right")
+plot(bermudaWeightedSlopes)
