@@ -117,6 +117,9 @@ get_TL_adjusted_slopes <- function(temp, toleranceLandscape){
   surv <- toleranceLandscape$S[,2]
   ta.mn <- toleranceLandscape$ta.mn
   z <- toleranceLandscape$z
+  # surv <- t2$S[,2]
+  # ta.mn <- t2$ta.mn
+  # z <- t2$z
   shift <- 10^((ta.mn - temp)/z)
   slope_vector <- c()
   for(i in 1:length(temp)){
@@ -131,16 +134,24 @@ get_TL_adjusted_slopes <- function(temp, toleranceLandscape){
 }
 
 # test functions
-library(zoo)
-
 strain_temp4 <- read.csv("Vcor/data/strain_temp4.csv")
 t2 <- tolerance_landscape(strain_temp4$Tank_temperature, strain_temp4$Time_to_infection)
+
+x <- seq(0, 40, 1)
+x2 <- get_TL_adjusted_slopes(x, t2)
+plot(x, x2, type = 'l')
+
+# Bermuda data
+library(zoo)
 load("Vcor/resp_fun/TempData_Silbiger.RData")
 temp_b <- subset(temp, Region == "Bermuda")
 
 bermudaSlopes <- get_TL_adjusted_slopes(temp_b$Temp, t2)
 
-thermal_accum_fun = function(x) { w = length(x):1; sum(x*exp(-0.5/w))}
+thermal_accum_fun <- function(x) { 
+  w = length(x):1
+  mean(x*exp(-0.5/w))
+  }
 
 bermudaWeightedSlopes <- rollapply(bermudaSlopes, 
                                   width = 90, 
@@ -150,3 +161,21 @@ bermudaWeightedSlopes <- rollapply(bermudaSlopes,
                                   by.column = FALSE, 
                                   align="right")
 plot(bermudaWeightedSlopes)
+
+firstValIndex <- which(!is.na(bermudaWeightedSlopes) == T)[1]
+s0 <- 100
+s1 <- s0 - exp(bermudaWeightedSlopes[firstValIndex]) # negative bermudaWeightedSlopes?
+
+susceptibility_fun <- function(s, x) {
+  for(i in 1:length(x)){
+    snew <- s[length(s)] * exp(-x[i])
+    s <- c(s, snew)
+  }
+  s
+}
+
+# x <- bermudaWeightedSlopes[firstValIndex:length(bermudaWeightedSlopes)]
+test <- susceptibility_fun(s1, x) 
+plot.ts(test)
+test
+
