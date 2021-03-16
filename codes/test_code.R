@@ -1,0 +1,100 @@
+library(shiny)
+library(leaflet)
+library(dygraphs)
+library(rgdal)
+library(xts)
+library(tidyverse)
+
+load("Compiled_data/grid.RData")
+load("Compiled_data/spatial_grid.Rds")
+
+# replace with fore-c data
+leaf_reefs <- leaflet() %>%
+  addTiles(group = "OpenStreetMap") %>%
+  addPolygons(data = reefs2, layerId = ~ID) %>%
+  setView(lng = -156, lat = 20 , zoom = 7)
+
+# generate some random time series data
+reefsDF$Date <- as.Date("2021-03-01", "%Y-%m-%d")
+
+reefsDF2 <- reefsDF %>% 
+  group_by(ID) %>%
+  complete(Date = seq.Date(Date - 16*7, Date, by="week"))
+
+reefsDF2$Prev <- ifelse(reefsDF2$Date < "2021-01-20", rbeta(nrow(reefsDF2), 0.3, 1), NA)
+reefsDF2$Forecast1 <- ifelse(reefsDF2$Date > "2021-01-20", rbeta(nrow(reefsDF2), 0.3, 1), NA)
+reefsDF2$Forecast2 <- ifelse(reefsDF2$Date > "2021-01-20", rbeta(nrow(reefsDF2), 0.3, 1), NA)
+reefsDF2$Forecast3 <- ifelse(reefsDF2$Date > "2021-01-20", rbeta(nrow(reefsDF2), 0.3, 1), NA)
+# reefsDF2$Forecast4 <- ifelse(reefsDF2$Date > "2021-01-20", rbeta(nrow(reefsDF2), 0.3, 1), NA)
+
+reefsDF2$PrevUpr <- reefsDF2$Prev + 0.1
+reefsDF2$PrevLwr <- reefsDF2$Prev - 0.1
+
+reefsDF2$F1Upr <- reefsDF2$Forecast1 + 0.1
+reefsDF2$F1Lwr <- reefsDF2$Forecast1 - 0.1
+
+reefsDF2$F2Upr <- reefsDF2$Forecast2 + 0.1
+reefsDF2$F2Lwr <- reefsDF2$Forecast2 - 0.1
+
+reefsDF2$F3Upr <- reefsDF2$Forecast3 + 0.1
+reefsDF2$F3Lwr <- reefsDF2$Forecast3 - 0.1
+
+ui <- fluidPage(
+  leafletOutput("map1"),
+  dygraphOutput("dygraph1",height = 200),
+  textOutput("message", container = h3)
+  )
+
+server <- function(input, output, session) {
+  v <- reactiveValues(msg = "")
+  output$map1 <- renderLeaflet({
+    leaf_reefs
+  })
+  observeEvent(input$map1_shape_click, {
+    
+    reef_pixels_data <- reefsDF2[reefsDF2$ID == input$map1_shape_click$id,]
+    reef_pixels2 <- reef_pixels_data[,c("Prev", "PrevUpr", "PrevLwr", 
+                                        "Forecast1", "F1Lwr", "F1Upr", 
+                                        "Forecast2", "F2Lwr", "F2Upr",
+                                        "Forecast3", "F3Lwr", "F3Upr")]
+    x <- xts(x = reef_pixels2, order.by = reef_pixels_data$Date)
+    # https://rstudio.github.io/dygraphs/gallery-upper-lower-bars.html
+    output$dygraph1 <- renderDygraph({
+      # reefs_ts <- xts(reef_pixels_data[, c("Prev", "Upr", "Lwr")], order.by = reef_pixels_data$Date)
+      # 
+      # dygraph(reef_pixels_data, "White syndromes") %>%
+      #   dySeries("Prev", label = "Nowcast") %>%
+      #   dySeries(c("Lwr", "Prev", "Upr"), label = "Forecast")
+      
+      dygraph(x, "White syndromes") %>%
+        dySeries(c("PrevLwr", "Prev", "PrevUpr"), label = "Nowcast") %>%
+        dySeries(c("F1Lwr", "Forecast1", "F1Upr"), label = "Forecast1") %>%
+        dySeries(c("F2Lwr", "Forecast2", "F2Upr"), label = "Forecast2") %>%
+        dySeries(c("F3Lwr", "Forecast3", "F3Upr"), label = "Forecast3") %>%
+        dyAxis("y", label = "Disease risk", valueRange = c(0, 1.05)) %>%
+        dyLegend(show = "onmouseover", hideOnMouseOut = FALSE)
+    })
+  })
+
+}
+
+shinyApp(ui, server)
+
+# time series plot
+# reef_pixels_data <- reefsDF2[, c("Date", "Prev", "Upr", "Lwr")]
+
+# https://rstudio.github.io/dygraphs/gallery-upper-lower-bars.html
+reefs <- reefsDF2[reefsDF2$ID == 500, ]
+reefs2 <- reefs[,c("Prev", "PrevUpr", "PrevLwr", 
+                   "Forecast1", "F1Upr", "F1Lwr",
+                   "Forecast2", "F2Upr", "F2Lwr")]
+reefs_ts <- xts(reefs2, order.by = reefs$Date)
+
+dygraph(reefs_ts, "White syndromes") %>%
+  dySeries(c("PrevLwr", "Prev", "PrevUpr"), label = "Nowcast") %>%
+  dySeries(c("F1Lwr", "Forecast1", "F1Upr"), label = "Forecast1") %>%
+  dySeries(c("F2Lwr", "Forecast2", "F2Upr"), label = "Forecast2") %>%
+  dyAxis("y", label = "Disease risk", valueRange = c(0, 1.05)) %>%
+  dyLegend(show = "onmouseover", hideOnMouseOut = FALSE)
+
+  
