@@ -20,97 +20,87 @@ library(tidyverse)
 library(shinyWidgets)
 library(rgdal) # needed if using clickable polygons
 library(sf) # needed if using clickable polygons
+library(dygraphs)
+library(xts)
 
 # load data
 load("Compiled_data/historical_surveys.RData")
 vs <- read.csv("Data/virtual_stations.csv", stringsAsFactors = F)
 load("Compiled_data/vs_scenarios_long.RData")
 source("codes/addScaleBar.R")
+load("Compiled_data/grid.RData")
+load("Compiled_data/spatial_grid.Rds")
+load("Compiled_data/simulated_data_for_dygraphs.RData")
 
-# load rasters
-lastUpdate <- substr(max(list.files("Compiled_data/nowcasts/raster/")), 1, 10)
-ga_nowcast <- raster(paste0("Compiled_data/forecasts_4wk/raster/", lastUpdate, "_ga.tif"))
-ga_4wkcast <- raster(paste0("Compiled_data/nowcasts/raster/", lastUpdate, "_ga.tif"))
-ga_8wkcast <- raster(paste0("Compiled_data/forecasts_8wk/raster/", lastUpdate, "_ga.tif"))
-ga_12wkcast <- raster(paste0("Compiled_data/forecasts_12wk/raster/", lastUpdate, "_ga.tif"))
-
-# map settings (commented out polygon mapping) 
-# p <- as(ga_nowcast, "SpatialPolygonsDataFrame")
-# nByTown_latlon <- spTransform(p, CRS("+proj=longlat +datum=WGS84"))
-bins <- seq(0, 0.3, 0.05)
-# pal <- colorBin("YlOrRd", domain = nByTown_latlon$X2020.11.18_ga, bins = bins)
-pal <- colorBin(colorRampPalette(c("blue", "yellow", "red"))(30), domain = ga_nowcast$X2020.11.18_ga, bins = bins, na.color = "transparent")
-
-# pal <- colorNumeric(c("#0C2C84", "#41B6C4", "#FFFFCC"), values(ga_12wkcast),
-#                     na.color = "transparent") 
-
-# testplot <- list(plot(seq(1,10,1), seq(1,10,1), xlab = "x", ylab = "y", pch = 16))
-# 
-# labelx <- paste0("Estimate disease risk = ", round(nByTown_latlon$X2020.11.18_ga, 2)*100, "%") %>% 
-#   lapply(htmltools::HTML)
-# 
-# leaflet() %>%
-#   addTiles() %>%
-#   addPolygons(data = nByTown_latlon,
-#               fillColor = ~pal(nByTown_latlon$X2020.11.18_ga),
-#               weight = 2,
-#               opacity = 1,
-#               color = ~pal(nByTown_latlon$X2020.11.18_ga),
-#               fillOpacity = 0.7,
-#               labels = labelx,
-#               labelOptions = labelOptions(style = list("font-weight" = "normal", 
-#                                                        padding = "3px 8px"),
-#                                           textsize = "15px",
-#                                           direction = "auto")) 
-#   
-#   popupGraph(testplot,
-#              width = 300,
-#              height = 300)
-
-
-
-legendLabels <- c("0-5", "6-10", "9-15", "16-20", "21-25", "26-30", "NA")
+# # load rasters
+# lastUpdate <- substr(max(list.files("Compiled_data/nowcasts/raster/")), 1, 10)
+# ga_nowcast <- raster(paste0("Compiled_data/forecasts_4wk/raster/", lastUpdate, "_ga.tif"))
+# ga_4wkcast <- raster(paste0("Compiled_data/nowcasts/raster/", lastUpdate, "_ga.tif"))
+# ga_8wkcast <- raster(paste0("Compiled_data/forecasts_8wk/raster/", lastUpdate, "_ga.tif"))
+# ga_12wkcast <- raster(paste0("Compiled_data/forecasts_12wk/raster/", lastUpdate, "_ga.tif"))
 
 # create maps
-basemap <- leaflet() %>%
+bins <- c(0, 0.05, 0.10, 0.15, 0.25, 0.50, 0.75, 1.0)
+pal <- colorBin(viridis(length(bins)), domain = reefs2$drisk, bins = bins, na.color = "transparent")
+legendLabels <- c("0-5", "6-10", "11-15", "16-25", "26-50", "51-75", "76-100", "NA")
+
+leaf_reefs <- leaflet() %>%
   addTiles(group = "OpenStreetMap") %>%
   addTiles(urlTemplate="http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", group = "Satellite") %>%
   addScaleBar() %>%
-  addRasterImage(ga_nowcast, colors = pal, opacity = 0.6, group = "Nowcast") %>%
-  addRasterImage(ga_4wkcast, colors = pal, opacity = 0.6, group = "4-week forecast") %>%
-  addRasterImage(ga_8wkcast, colors = pal, opacity = 0.6, group = "8-week forecast") %>%
-  addRasterImage(ga_12wkcast, colors = pal, opacity = 0.6, group = "12-week forecast") %>%
-  # setView(lng = 180, lat = 0 , zoom = 3)  %>% # global
-  setView(lng = -157, lat = 20 , zoom = 7)  %>% # Hawaii
+  addPolygons(data = reefs2, 
+              layerId = ~ID,
+              fillColor = ~pal(reefs2$drisk),
+              weight = 2,
+              opacity = 1,
+              color = ~pal(reefs2$drisk),
+              fillOpacity = 0.7) %>%
   addLayersControl(
-    overlayGroups = c("Nowcast", "4-week forecast", "8-week forecast", "12-week forecast"),
     baseGroups = c("OpenStreetMap", "Satellite"),
     options = layersControlOptions(collapsed = FALSE), # icon versus buttons with text
-    position = c("bottomright")
-    ) %>%
-  hideGroup(c("4-week forecast", "8-week forecast", "12-week forecast")) %>%
-  addLegend("bottomleft", pal = pal, values = values(ga_12wkcast),
+    position = c("topleft")) %>%
+  leaflet::addLegend("topleft", pal = pal, values = reefs2$drisk,
             title = "Disease risk (%)",
             labFormat = function(type, cuts, p) {  # Here's the trick
-              paste0(legendLabels)
-            }
-  )
-
-# https://stackoverflow.com/questions/31814037/integrating-time-series-graphs-and-leaflet-maps-using-r-shiny
-library(leafpop)
-load("Compiled_data/spatial_grid.Rds")
-load("Compiled_data/grid.RData")
-
-
-basemap2 <- leaflet() %>%
-  # If you prefer streetmaps uncomment line 18 and comment line 20
-  addTiles(group = "OpenStreetMap") %>%
-  # addTiles(urlTemplate="http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", group = "Satellite") %>%
-  addPolygons(data = reefs2) %>%
+              paste0(legendLabels) }) %>%
   setView(lng = -156, lat = 20 , zoom = 7)
 
+# basemap <- leaflet() %>%
+#   addTiles(group = "OpenStreetMap") %>%
+#   addTiles(urlTemplate="http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", group = "Satellite") %>%
+#   addScaleBar() %>%
+#   addRasterImage(ga_nowcast, colors = pal, opacity = 0.6, group = "Nowcast") %>%
+#   addRasterImage(ga_4wkcast, colors = pal, opacity = 0.6, group = "4-week forecast") %>%
+#   addRasterImage(ga_8wkcast, colors = pal, opacity = 0.6, group = "8-week forecast") %>%
+#   addRasterImage(ga_12wkcast, colors = pal, opacity = 0.6, group = "12-week forecast") %>%
+#   # setView(lng = 180, lat = 0 , zoom = 3)  %>% # global
+#   setView(lng = -157, lat = 20 , zoom = 7)  %>% # Hawaii
+#   addLayersControl(
+#     overlayGroups = c("Nowcast", "4-week forecast", "8-week forecast", "12-week forecast"),
+#     baseGroups = c("OpenStreetMap", "Satellite"),
+#     options = layersControlOptions(collapsed = FALSE), # icon versus buttons with text
+#     position = c("bottomright")
+#     ) %>%
+#   hideGroup(c("4-week forecast", "8-week forecast", "12-week forecast")) %>%
+#   addLegend("bottomleft", pal = pal, values = values(ga_12wkcast),
+#             title = "Disease risk (%)",
+#             labFormat = function(type, cuts, p) {  # Here's the trick
+#               paste0(legendLabels)
+#             }
+#   )
 
-
+# https://stackoverflow.com/questions/31814037/integrating-time-series-graphs-and-leaflet-maps-using-r-shiny
+# library(leafpop)
+# load("Compiled_data/spatial_grid.Rds")
+# load("Compiled_data/grid.RData")
+# 
+# 
+# basemap2 <- leaflet() %>%
+#   # If you prefer streetmaps uncomment line 18 and comment line 20
+#   addTiles(group = "OpenStreetMap") %>%
+#   # addTiles(urlTemplate="http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", group = "Satellite") %>%
+#   addPolygons(data = reefs2) %>%
+#   setView(lng = -156, lat = 20 , zoom = 7)
 
 # historical map
 historicalMap = leaflet() %>%
@@ -139,80 +129,121 @@ vs_plot_fun <- function(df){
 }
   
 # run shiny app
-shinyApp(
-  ui =  navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
-            
-                   # Nowcasts and forecasts page
-                   tabPanel("Coral disease predictions",
-                      div(class="outer",
-                          tags$head(includeCSS("styles.css")),
-                          leafletOutput("disease_risk_map", width = "100%", height = "100%"))
-                      ),
-
-                   # Scenarios page
-                   tabPanel("Scenarios",
-                           tabsetPanel(type = "tabs",
-                                       tabPanel("Growth anomalies",
-                                                sidebarPanel(
-                                                  
-                                                  pickerInput("ga_region_select", "Region:",   
-                                                              choices = unique(vs[order(vs$Region),]$Region), 
-                                                              selected = c("Hawaii"),
-                                                              options = list(`actions-box` = TRUE, `none-selected-text` = "Please make a selection!"),
-                                                              multiple = FALSE),
-                                                  
-                                                  pickerInput("ga_vs_select", "Virtual station(s):",
-                                                              choices = vs$Virtual_Stations[vs$Region == "Hawaii"],
-                                                              options = list(`actions-box` = TRUE, `none-selected-text` = "Please make a selection!"),
-                                                              selected = vs$Virtual_Stations[vs$Region == "Hawaii"],
-                                                              multiple = TRUE),
-                                                  
-                                                  "Scenarios:",
-                                                  sliderInput("colsize_slider", label = ("Mean colony size"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
-                                                  sliderInput("cover_slider", label = ("Host coral cover"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
-                                                  sliderInput("fish_slider", label = ("Fish abundance"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
-                                                  sliderInput("depth_slider", label = ("Depth (m)"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
-                                                  sliderInput("temp_slider", label = ("Temperature"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
-                                                  actionButton("reset_input", label = "Reset inputs") # https://stackoverflow.com/questions/24265980/reset-inputs-button-in-shiny-app
-                                                ),
-                                                mainPanel(
-                                                  tabPanel("Disease risk", plotOutput("ga_vs_risk_plot"))
-                                                )
-
-                                       ),
-                                       tabPanel("White syndromes",
-                                                sidebarPanel(
-                                                  
-                                                  pickerInput("region_select", "Region:",   
-                                                              choices = c("Australia", "American Samoa", "Hawaii", "Marianas", "Pacific Remote Island Areas"), 
-                                                              selected = c("Hawaii"),
-                                                              multiple = FALSE),
-                                                  
-                                                  sliderInput("chl_slider", label = h3("Chlorophyll-a"), min = -100, max = 100, step=10, width='200px', post  = " %", value = 0),
-                                                             hr(),
-                                                             sliderInput("coral_slider", label = h3("Mean coral size"), min = 0, max = 100, step=10, width='200px', post  = " cm", value = 20),
-                                                             hr(),
-                                                             actionButton("reset_input", label = "Reset inputs") # https://stackoverflow.com/questions/24265980/reset-inputs-button-in-shiny-app
-                                                ),
-                                                mainPanel(leafletOutput("mymap5"))
-                                       ))
-                           ),
-                  # Historical data page
-                  tabPanel("Historical data", 
-                           div(class="outer",
-                               tags$head(includeCSS("styles.css")),
-                               leafletOutput("historical_data_map", width="100%", height="100%"))),
-                  
-                  # About the project page
-                  tabPanel("About")
-  ),
+ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
+                 # Nowcasts and forecasts page
+                 tabPanel("Coral disease predictions",
+                          div(class="outer",
+                              tags$head(includeCSS("styles.css")),
+                              leafletOutput("map1", width = "100%", height = "100%")),
+                          absolutePanel(id = "controls", class = "panel panel-default",
+                                        bottom = 50, left = 10, width = 550, fixed=TRUE,
+                                        draggable = FALSE, height = "auto",
+                                        dygraphOutput("dygraph1",height = 200),
+                                        dygraphOutput("dygraph2", height = 200),
+                                        style = "opacity: 0.92"
+                          )
+                 ),
+                 
+                 # Scenarios page
+                 tabPanel("Scenarios",
+                          tabsetPanel(type = "tabs",
+                                      tabPanel("Growth anomalies",
+                                               sidebarPanel(
+                                                 
+                                                 pickerInput("ga_region_select", "Region:",   
+                                                             choices = unique(vs[order(vs$Region),]$Region), 
+                                                             selected = c("Hawaii"),
+                                                             options = list(`actions-box` = TRUE, `none-selected-text` = "Please make a selection!"),
+                                                             multiple = FALSE),
+                                                 
+                                                 pickerInput("ga_vs_select", "Virtual station(s):",
+                                                             choices = vs$Virtual_Stations[vs$Region == "Hawaii"],
+                                                             options = list(`actions-box` = TRUE, `none-selected-text` = "Please make a selection!"),
+                                                             selected = vs$Virtual_Stations[vs$Region == "Hawaii"],
+                                                             multiple = TRUE),
+                                                 
+                                                 "Scenarios:",
+                                                 sliderInput("colsize_slider", label = ("Mean colony size"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
+                                                 sliderInput("cover_slider", label = ("Host coral cover"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
+                                                 sliderInput("fish_slider", label = ("Fish abundance"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
+                                                 sliderInput("depth_slider", label = ("Depth (m)"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
+                                                 sliderInput("temp_slider", label = ("Temperature"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
+                                                 actionButton("reset_input", label = "Reset inputs") # https://stackoverflow.com/questions/24265980/reset-inputs-button-in-shiny-app
+                                               ),
+                                               mainPanel(
+                                                 tabPanel("Disease risk", plotOutput("ga_vs_risk_plot"))
+                                               )
+                                               
+                                      ),
+                                      tabPanel("White syndromes",
+                                               sidebarPanel(
+                                                 
+                                                 pickerInput("region_select", "Region:",   
+                                                             choices = c("Australia", "American Samoa", "Hawaii", "Marianas", "Pacific Remote Island Areas"), 
+                                                             selected = c("Hawaii"),
+                                                             multiple = FALSE),
+                                                 
+                                                 sliderInput("chl_slider", label = h3("Chlorophyll-a"), min = -100, max = 100, step=10, width='200px', post  = " %", value = 0),
+                                                 hr(),
+                                                 sliderInput("coral_slider", label = h3("Mean coral size"), min = 0, max = 100, step=10, width='200px', post  = " cm", value = 20),
+                                                 hr(),
+                                                 actionButton("reset_input", label = "Reset inputs") # https://stackoverflow.com/questions/24265980/reset-inputs-button-in-shiny-app
+                                               ),
+                                               mainPanel(leafletOutput("mymap5"))
+                                      ))
+                 ),
+                 # Historical data page
+                 tabPanel("Historical data", 
+                          div(class="outer",
+                              tags$head(includeCSS("styles.css")),
+                              leafletOutput("historical_data_map", width="100%", height="100%"))),
+                 
+                 # About the project page
+                 tabPanel("About")
+                 )
   
-  server = function(input, output, session) { 
+server <- function(input, output, session) { 
     
     # Main map
-    output$disease_risk_map <- renderLeaflet({
-      basemap
+    # output$disease_risk_map <- renderLeaflet({
+    #   basemap
+    # })
+  output$map1 <- renderLeaflet({
+    leaf_reefs
+  })
+  observeEvent(input$map1_shape_click, {
+    
+    reef_pixels_data <- reefsDF2[reefsDF2$ID == input$map1_shape_click$id,]
+    reef_pixels2 <- reef_pixels_data[,c("Prev", "PrevUpr", "PrevLwr", 
+                                        "Forecast1", "F1Lwr", "F1Upr", 
+                                        "Forecast2", "F2Lwr", "F2Upr",
+                                        "Forecast3", "F3Lwr", "F3Upr")]
+    x <- xts(x = reef_pixels2, order.by = reef_pixels_data$Date)
+    # https://rstudio.github.io/dygraphs/gallery-upper-lower-bars.html
+    output$dygraph1 <- renderDygraph({
+      dygraph(x, "Growth anomalies") %>%
+        dySeries(c("PrevLwr", "Prev", "PrevUpr"), label = "Nowcast") %>%
+        dySeries(c("F1Lwr", "Forecast1", "F1Upr"), label = "Forecast1") %>%
+        dySeries(c("F2Lwr", "Forecast2", "F2Upr"), label = "Forecast2") %>%
+        dySeries(c("F3Lwr", "Forecast3", "F3Upr"), label = "Forecast3") %>%
+        dyAxis("y", label = "Disease risk", valueRange = c(0, 1.05)) %>%
+        dyLegend(show = "onmouseover", hideOnMouseOut = FALSE) %>%
+        dyOptions(axisLineWidth = 1.5, drawGrid = FALSE)
+      
     })
+    output$dygraph2 <- renderDygraph({
+      dygraph(x, "White syndromes") %>%
+        dySeries(c("PrevLwr", "Prev", "PrevUpr"), label = "Nowcast") %>%
+        dySeries(c("F1Lwr", "Forecast1", "F1Upr"), label = "Forecast1") %>%
+        dySeries(c("F2Lwr", "Forecast2", "F2Upr"), label = "Forecast2") %>%
+        dySeries(c("F3Lwr", "Forecast3", "F3Upr"), label = "Forecast3") %>%
+        dyAxis("y", label = "Disease risk", valueRange = c(0, 1.05)) %>%
+        dyLegend(show = "onmouseover", hideOnMouseOut = FALSE) %>%
+        dyOptions(axisLineWidth = 1.5, drawGrid = FALSE)
+      
+    })
+  })
+  
     
     # scenarios outputs
     # update region selections
@@ -276,4 +307,4 @@ shinyApp(
   }
 )
 
-# shinyApp(ui, server)
+shinyApp(ui, server)
