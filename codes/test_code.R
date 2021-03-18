@@ -39,14 +39,32 @@ reefsDF2$F2Lwr <- reefsDF2$Forecast2 - 0.1
 reefsDF2$F3Upr <- reefsDF2$Forecast3 + 0.1
 reefsDF2$F3Lwr <- reefsDF2$Forecast3 - 0.1
 
-ui <- fluidPage(
-  leafletOutput("map1"),
-  dygraphOutput("dygraph1",height = 200),
-  textOutput("message", container = h3)
-  )
+ui <- 
+  # fluidPage(
+  navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
+             tabPanel("Coral disease predictions",
+                      div(class="outer",
+                          tags$head(includeCSS("styles.css")),
+                          
+                          # leafletOutput("map1"),
+                          # dygraphOutput("dygraph1", height = 200),
+                          # dygraphOutput("dygraph2", height = 200)
+                          
+                          leafletOutput("map1", width = "100%", height = "100%")),
+                      # # TRY THIS OUT
+                      absolutePanel(id = "controls", class = "panel panel-default",
+                                    top = 85, right = 25, width = 550, fixed=TRUE,
+                                    draggable = TRUE, height = "auto",
+                                    dygraphOutput("dygraph1",height = 200),
+                                    dygraphOutput("dygraph2", height = 200)
+                                    )
+                      )
+             )
+shinyApp(ui, server)
 
 server <- function(input, output, session) {
   v <- reactiveValues(msg = "")
+  
   output$map1 <- renderLeaflet({
     leaf_reefs
   })
@@ -60,12 +78,15 @@ server <- function(input, output, session) {
     x <- xts(x = reef_pixels2, order.by = reef_pixels_data$Date)
     # https://rstudio.github.io/dygraphs/gallery-upper-lower-bars.html
     output$dygraph1 <- renderDygraph({
-      # reefs_ts <- xts(reef_pixels_data[, c("Prev", "Upr", "Lwr")], order.by = reef_pixels_data$Date)
-      # 
-      # dygraph(reef_pixels_data, "White syndromes") %>%
-      #   dySeries("Prev", label = "Nowcast") %>%
-      #   dySeries(c("Lwr", "Prev", "Upr"), label = "Forecast")
-      
+      dygraph(x, "Growth anomalies") %>%
+        dySeries(c("PrevLwr", "Prev", "PrevUpr"), label = "Nowcast") %>%
+        dySeries(c("F1Lwr", "Forecast1", "F1Upr"), label = "Forecast1") %>%
+        dySeries(c("F2Lwr", "Forecast2", "F2Upr"), label = "Forecast2") %>%
+        dySeries(c("F3Lwr", "Forecast3", "F3Upr"), label = "Forecast3") %>%
+        dyAxis("y", label = "Disease risk", valueRange = c(0, 1.05)) %>%
+        dyLegend(show = "onmouseover", hideOnMouseOut = FALSE)
+    })
+    output$dygraph2 <- renderDygraph({
       dygraph(x, "White syndromes") %>%
         dySeries(c("PrevLwr", "Prev", "PrevUpr"), label = "Nowcast") %>%
         dySeries(c("F1Lwr", "Forecast1", "F1Upr"), label = "Forecast1") %>%
