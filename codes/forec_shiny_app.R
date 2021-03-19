@@ -41,7 +41,7 @@ load("Compiled_data/simulated_data_for_dygraphs.RData")
 
 # create maps
 bins <- c(0, 0.05, 0.10, 0.15, 0.25, 0.50, 0.75, 1.0)
-pal <- colorBin(viridis(length(bins)), domain = reefs2$drisk, bins = bins, na.color = "transparent")
+pal <- colorBin( brewer.pal(length(bins), "YlOrRd"), domain = reefs2$drisk, bins = bins, na.color = "transparent")
 legendLabels <- c("0-5", "6-10", "11-15", "16-25", "26-50", "51-75", "76-100", "NA")
 
 leaf_reefs <- leaflet() %>%
@@ -54,16 +54,18 @@ leaf_reefs <- leaflet() %>%
               weight = 2,
               opacity = 1,
               color = ~pal(reefs2$drisk),
-              fillOpacity = 0.7) %>%
+              fillOpacity = 0.7,
+              group = "Forecast") %>%
   addLayersControl(
+    overlayGroups = c("Forecast"),
     baseGroups = c("OpenStreetMap", "Satellite"),
     options = layersControlOptions(collapsed = FALSE), # icon versus buttons with text
     position = c("topleft")) %>%
   leaflet::addLegend("topleft", pal = pal, values = reefs2$drisk,
             title = "Disease risk (%)",
             labFormat = function(type, cuts, p) {  # Here's the trick
-              paste0(legendLabels) }) %>%
-  setView(lng = -156, lat = 20 , zoom = 7)
+              paste0(legendLabels) }) 
+# %>% setView(lng = -156, lat = 20 , zoom = 7)
 
 # basemap <- leaflet() %>%
 #   addTiles(group = "OpenStreetMap") %>%
@@ -136,11 +138,12 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                               tags$head(includeCSS("styles.css")),
                               leafletOutput("map1", width = "100%", height = "100%")),
                           absolutePanel(id = "controls", class = "panel panel-default",
-                                        bottom = 50, left = 10, width = 550, fixed=TRUE,
+                                        bottom = 0, right = 0, width = 550, fixed = TRUE,
                                         draggable = FALSE, height = "auto",
                                         dygraphOutput("dygraph1",height = 200),
                                         dygraphOutput("dygraph2", height = 200),
-                                        style = "opacity: 0.92"
+                                        style = "opacity: 0.92",
+                                        span(tags$i(h6("Disease forecasts, select a pixel")), style="color:#045a8d")
                           )
                  ),
                  
@@ -228,7 +231,7 @@ server <- function(input, output, session) {
         dySeries(c("F3Lwr", "Forecast3", "F3Upr"), label = "Forecast3") %>%
         dyAxis("y", label = "Disease risk", valueRange = c(0, 1.05)) %>%
         dyLegend(show = "onmouseover", hideOnMouseOut = FALSE) %>%
-        dyOptions(axisLineWidth = 1.5, drawGrid = FALSE)
+        dyOptions(axisLineWidth = 1.5, drawGrid = FALSE, colors = c("grey", "blue", "blue", "blue"))
       
     })
     output$dygraph2 <- renderDygraph({
@@ -239,7 +242,7 @@ server <- function(input, output, session) {
         dySeries(c("F3Lwr", "Forecast3", "F3Upr"), label = "Forecast3") %>%
         dyAxis("y", label = "Disease risk", valueRange = c(0, 1.05)) %>%
         dyLegend(show = "onmouseover", hideOnMouseOut = FALSE) %>%
-        dyOptions(axisLineWidth = 1.5, drawGrid = FALSE)
+        dyOptions(axisLineWidth = 1.5, drawGrid = FALSE, colors = c("grey", "blue", "blue", "blue"))
       
     })
   })
@@ -305,6 +308,5 @@ server <- function(input, output, session) {
       historicalMap
     })
   }
-)
 
 shinyApp(ui, server)
