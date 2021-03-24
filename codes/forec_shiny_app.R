@@ -8,6 +8,12 @@ rm(list=ls()) #remove previous variable assignments
 # https://stackoverflow.com/questions/62544187/popupgraph-r-leaflet-why-are-my-popup-graphs-blank OR
 # https://stackoverflow.com/questions/62642615/adding-reactive-popup-graphs-plots-to-a-leaflet-map-with-shiny-r
 
+#### click id with multiple polygons:
+# https://stackoverflow.com/questions/41104576/changing-styles-when-selecting-and-deselecting-multiple-polygons-with-leaflet-sh
+# newer response
+# https://stackoverflow.com/questions/65893124/select-multiple-items-using-map-click-in-leaflet-linked-to-selectizeinput-in/65935636#65935636
+##########
+
 # load libraries
 library(shiny)
 library(shinythemes)
@@ -22,6 +28,8 @@ library(rgdal) # needed if using clickable polygons
 library(sf) # needed if using clickable polygons
 library(dygraphs)
 library(xts)
+library(RColorBrewer)
+library(plotly)
 
 # load data
 load("Compiled_data/historical_surveys.RData")
@@ -31,7 +39,8 @@ source("codes/addScaleBar.R")
 load("Compiled_data/grid.RData")
 load("Compiled_data/spatial_grid.Rds")
 load("Compiled_data/simulated_data_for_dygraphs.RData")
-
+load("Compiled_data/simulated_data_for_plotlygraphs.RData")
+load("Compiled_data/regional_polygons.Rds")
 # # load rasters
 # lastUpdate <- substr(max(list.files("Compiled_data/nowcasts/raster/")), 1, 10)
 # ga_nowcast <- raster(paste0("Compiled_data/forecasts_4wk/raster/", lastUpdate, "_ga.tif"))
@@ -41,7 +50,7 @@ load("Compiled_data/simulated_data_for_dygraphs.RData")
 
 # create maps
 bins <- c(0, 0.05, 0.10, 0.15, 0.25, 0.50, 0.75, 1.0)
-pal <- colorBin( brewer.pal(length(bins), "YlOrRd"), domain = reefs2$drisk, bins = bins, na.color = "transparent")
+pal <- colorBin(brewer.pal(length(bins), "YlOrRd"), domain = reefs2$drisk, bins = bins, na.color = "transparent")
 legendLabels <- c("0-5", "6-10", "11-15", "16-25", "26-50", "51-75", "76-100", "NA")
 
 leaf_reefs <- leaflet() %>%
@@ -55,54 +64,23 @@ leaf_reefs <- leaflet() %>%
               opacity = 1,
               color = ~pal(reefs2$drisk),
               fillOpacity = 0.7,
-              group = "Forecast") %>%
+              group = "Pixel forecasts") %>%
+  addPolygons(data = region_poly,
+              group = "Regional forecasts",
+              color = c("black", "blue", "red", "green", "yellow", "purple")) %>%
   addLayersControl(
-    overlayGroups = c("Forecast"),
+    overlayGroups = c("Pixel forecasts", "Regional forecasts"),
     baseGroups = c("OpenStreetMap", "Satellite"),
     options = layersControlOptions(collapsed = FALSE), # icon versus buttons with text
     position = c("topleft")) %>%
+  hideGroup(c("Regional forecasts")) %>% 
   leaflet::addLegend("topleft", pal = pal, values = reefs2$drisk,
             title = "Disease risk (%)",
             labFormat = function(type, cuts, p) {  # Here's the trick
               paste0(legendLabels) }) 
-# %>% setView(lng = -156, lat = 20 , zoom = 7)
 
-# basemap <- leaflet() %>%
-#   addTiles(group = "OpenStreetMap") %>%
-#   addTiles(urlTemplate="http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", group = "Satellite") %>%
-#   addScaleBar() %>%
-#   addRasterImage(ga_nowcast, colors = pal, opacity = 0.6, group = "Nowcast") %>%
-#   addRasterImage(ga_4wkcast, colors = pal, opacity = 0.6, group = "4-week forecast") %>%
-#   addRasterImage(ga_8wkcast, colors = pal, opacity = 0.6, group = "8-week forecast") %>%
-#   addRasterImage(ga_12wkcast, colors = pal, opacity = 0.6, group = "12-week forecast") %>%
-#   # setView(lng = 180, lat = 0 , zoom = 3)  %>% # global
-#   setView(lng = -157, lat = 20 , zoom = 7)  %>% # Hawaii
-#   addLayersControl(
-#     overlayGroups = c("Nowcast", "4-week forecast", "8-week forecast", "12-week forecast"),
-#     baseGroups = c("OpenStreetMap", "Satellite"),
-#     options = layersControlOptions(collapsed = FALSE), # icon versus buttons with text
-#     position = c("bottomright")
-#     ) %>%
-#   hideGroup(c("4-week forecast", "8-week forecast", "12-week forecast")) %>%
-#   addLegend("bottomleft", pal = pal, values = values(ga_12wkcast),
-#             title = "Disease risk (%)",
-#             labFormat = function(type, cuts, p) {  # Here's the trick
-#               paste0(legendLabels)
-#             }
-#   )
-
-# https://stackoverflow.com/questions/31814037/integrating-time-series-graphs-and-leaflet-maps-using-r-shiny
-# library(leafpop)
-# load("Compiled_data/spatial_grid.Rds")
-# load("Compiled_data/grid.RData")
-# 
-# 
-# basemap2 <- leaflet() %>%
-#   # If you prefer streetmaps uncomment line 18 and comment line 20
-#   addTiles(group = "OpenStreetMap") %>%
-#   # addTiles(urlTemplate="http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", group = "Satellite") %>%
-#   addPolygons(data = reefs2) %>%
-#   setView(lng = -156, lat = 20 , zoom = 7)
+# leaf_reefs
+# You can use input$mymap_groups to identify what kind of group is selected.In the observeEvent() you can use an if/else statement to create a legend based on a group.
 
 # historical map
 historicalMap = leaflet() %>%
@@ -129,7 +107,70 @@ vs_plot_fun <- function(df){
     theme_classic(base_size = 16) + 
     theme(legend.title=element_blank())
 }
+
+button_info = list(
+  list(
+    active = -1, # not dropdown menu
+    x = 0.2, # x location, if excluded, plots outside graph
+    y = 1.0, # y location
+    type = 'buttons',
+    buttons = list(
+      
+      list(method = "restyle",
+           args = list("visible", list(TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE)), # first 4 = lines, second 4 = ribbons
+           label = "Show CI"),
+      
+      list(method = "restyle",
+           args = list("visible", list(TRUE, TRUE, TRUE, TRUE, FALSE, FALSE, FALSE, FALSE)),
+           label = "Hide CI"))
+  )
   
+)
+  
+plotly_margins <- list(
+  l = 50,
+  r = 20,
+  b = 20,
+  t = 60
+)
+
+diseaseRisk_plotly <- function(df, titleName){
+  plot_ly() %>%
+    add_trace(data = df, 
+              x = ~Date, 
+              y = ~round(value*100), 
+              split = ~cast, 
+              type = 'scatter', 
+              mode = 'lines',
+              color = ~as.character(cast),
+              colors = "BrBG",
+              text = ~paste("Date:", Date,
+                            "<br>Risk:", round(value*100), "% (", round(Lwr*100), ",", round(Upr*100), ")"),
+              hoverinfo = "text") %>%
+    add_ribbons(data = df, 
+                x= ~Date, 
+                split = ~cast, 
+                ymin = ~round(Lwr*100), 
+                ymax = ~round(Upr*100),
+                color = ~as.character(cast),
+                colors = "BrBG", 
+                opacity=0.3,
+                hoverinfo='skip') %>%
+    layout(title = titleName,
+           xaxis = list(showgrid = F, 
+                        title = ""), 
+           yaxis = list(showline = T, 
+                        showgrid = F, 
+                        range = c(0, 100),
+                        title = "Disease risk"),
+           hovermode = 'compare',
+           font = list(size = 14),
+           showlegend = FALSE,
+           updatemenus = button_info, 
+           margin = plotly_margins)      
+  
+}
+
 # run shiny app
 ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                  # Nowcasts and forecasts page
@@ -138,10 +179,10 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                               tags$head(includeCSS("styles.css")),
                               leafletOutput("map1", width = "100%", height = "100%")),
                           absolutePanel(id = "controls", class = "panel panel-default",
-                                        bottom = 0, right = 0, width = 550, fixed = TRUE,
+                                        bottom = 0, right = 0, width = 600, fixed = TRUE,
                                         draggable = FALSE, height = "auto",
-                                        dygraphOutput("dygraph1",height = 200),
-                                        dygraphOutput("dygraph2", height = 200),
+                                        plotlyOutput("plotlyGA",height = 300),
+                                        plotlyOutput("plotlyWS", height = 300),
                                         style = "opacity: 0.92",
                                         span(tags$i(h6("Disease forecasts, select a pixel")), style="color:#045a8d")
                           )
@@ -207,44 +248,36 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
   
 server <- function(input, output, session) { 
     
-    # Main map
-    # output$disease_risk_map <- renderLeaflet({
-    #   basemap
-    # })
   output$map1 <- renderLeaflet({
     leaf_reefs
   })
+  
+  #create empty vector to hold all click ids
+  # selected_ids <- reactiveValues(ids = vector())
+  
+  #create empty vector to hold all click ids
+  selected <- reactiveValues(groups = vector())
+  
   observeEvent(input$map1_shape_click, {
     
-    reef_pixels_data <- reefsDF2[reefsDF2$ID == input$map1_shape_click$id,]
-    reef_pixels2 <- reef_pixels_data[,c("Prev", "PrevUpr", "PrevLwr", 
-                                        "Forecast1", "F1Lwr", "F1Upr", 
-                                        "Forecast2", "F2Lwr", "F2Upr",
-                                        "Forecast3", "F3Lwr", "F3Upr")]
-    x <- xts(x = reef_pixels2, order.by = reef_pixels_data$Date)
-    # https://rstudio.github.io/dygraphs/gallery-upper-lower-bars.html
-    output$dygraph1 <- renderDygraph({
-      dygraph(x, "Growth anomalies") %>%
-        dySeries(c("PrevLwr", "Prev", "PrevUpr"), label = "Nowcast") %>%
-        dySeries(c("F1Lwr", "Forecast1", "F1Upr"), label = "Forecast1") %>%
-        dySeries(c("F2Lwr", "Forecast2", "F2Upr"), label = "Forecast2") %>%
-        dySeries(c("F3Lwr", "Forecast3", "F3Upr"), label = "Forecast3") %>%
-        dyAxis("y", label = "Disease risk", valueRange = c(0, 1.05)) %>%
-        dyLegend(show = "onmouseover", hideOnMouseOut = FALSE) %>%
-        dyOptions(axisLineWidth = 1.5, drawGrid = FALSE, colors = c("grey", "blue", "blue", "blue"))
+    # if(is.numeric(input$map1_shape_click$id) == TRUE){
+    if(input$map1_shape_click$group == "Pixel forecasts"){
+      # selected$groups <- c(selected$groups, input$map_shape_click$id)
+      # proxy %>% showGroup(group = input$map_shape_click$id)
       
-    })
-    output$dygraph2 <- renderDygraph({
-      dygraph(x, "White syndromes") %>%
-        dySeries(c("PrevLwr", "Prev", "PrevUpr"), label = "Nowcast") %>%
-        dySeries(c("F1Lwr", "Forecast1", "F1Upr"), label = "Forecast1") %>%
-        dySeries(c("F2Lwr", "Forecast2", "F2Upr"), label = "Forecast2") %>%
-        dySeries(c("F3Lwr", "Forecast3", "F3Upr"), label = "Forecast3") %>%
-        dyAxis("y", label = "Disease risk", valueRange = c(0, 1.05)) %>%
-        dyLegend(show = "onmouseover", hideOnMouseOut = FALSE) %>%
-        dyOptions(axisLineWidth = 1.5, drawGrid = FALSE, colors = c("grey", "blue", "blue", "blue"))
+      z <- subset(p, ID == input$map1_shape_click$id)
+      z2  <- subset(p, ID == input$map1_shape_click$id + 1)
+      # https://rstudio.github.io/dygraphs/gallery-upper-lower-bars.html
+      output$plotlyGA <- renderPlotly({
+        diseaseRisk_plotly(z, "Growth anomalies")
+      })
       
-    })
+      output$plotlyWS <- renderPlotly({
+        diseaseRisk_plotly(z2, "White syndromes")
+      })
+
+    }
+
   })
   
     
@@ -310,3 +343,4 @@ server <- function(input, output, session) {
   }
 
 shinyApp(ui, server)
+
