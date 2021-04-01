@@ -30,6 +30,7 @@ library(dygraphs)
 library(xts)
 library(RColorBrewer)
 library(plotly)
+library(shinydashboard)
 
 # load data
 load("Compiled_data/historical_surveys.RData")
@@ -41,22 +42,18 @@ load("Compiled_data/spatial_grid.Rds")
 load("Compiled_data/simulated_data_for_dygraphs.RData")
 load("Compiled_data/simulated_data_for_plotlygraphs.RData")
 load("Compiled_data/regional_polygons.Rds")
-# # load rasters
-# lastUpdate <- substr(max(list.files("Compiled_data/nowcasts/raster/")), 1, 10)
-# ga_nowcast <- raster(paste0("Compiled_data/forecasts_4wk/raster/", lastUpdate, "_ga.tif"))
-# ga_4wkcast <- raster(paste0("Compiled_data/nowcasts/raster/", lastUpdate, "_ga.tif"))
-# ga_8wkcast <- raster(paste0("Compiled_data/forecasts_8wk/raster/", lastUpdate, "_ga.tif"))
-# ga_12wkcast <- raster(paste0("Compiled_data/forecasts_12wk/raster/", lastUpdate, "_ga.tif"))
 
 # create maps
 bins <- c(0, 0.05, 0.10, 0.15, 0.25, 0.50, 0.75, 1.0)
 pal <- colorBin(brewer.pal(length(bins), "YlOrRd"), domain = reefs2$drisk, bins = bins, na.color = "transparent")
 legendLabels <- c("0-5", "6-10", "11-15", "16-25", "26-50", "51-75", "76-100", "NA")
 
+poly_colors <- brewer.pal(length(region_poly), "Dark2")
+
 leaf_reefs <- leaflet() %>%
   addTiles(group = "OpenStreetMap") %>%
   addTiles(urlTemplate="http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", group = "Satellite") %>%
-  addScaleBar() %>%
+  addScaleBar("bottomleft") %>%
   addPolygons(data = reefs2, 
               layerId = ~ID,
               fillColor = ~pal(reefs2$drisk),
@@ -64,12 +61,16 @@ leaf_reefs <- leaflet() %>%
               opacity = 1,
               color = ~pal(reefs2$drisk),
               fillOpacity = 0.7,
-              group = "Pixel forecasts") %>%
+              group = "Local forecasts",
+              highlightOptions = highlightOptions(color = "black", weight = 3, bringToFront = TRUE)
+              ) %>%
   addPolygons(data = region_poly,
               group = "Regional forecasts",
-              color = c("black", "blue", "red", "green", "yellow", "purple")) %>%
+              color = poly_colors,
+              highlightOptions = highlightOptions(color = "black", weight = 2, bringToFront = TRUE)
+              ) %>%
   addLayersControl(
-    overlayGroups = c("Pixel forecasts", "Regional forecasts"),
+    overlayGroups = c("Local forecasts", "Regional forecasts"),
     baseGroups = c("OpenStreetMap", "Satellite"),
     options = layersControlOptions(collapsed = FALSE), # icon versus buttons with text
     position = c("topleft")) %>%
@@ -79,8 +80,14 @@ leaf_reefs <- leaflet() %>%
             labFormat = function(type, cuts, p) {  # Here's the trick
               paste0(legendLabels) }) 
 
-# leaf_reefs
-# You can use input$mymap_groups to identify what kind of group is selected.In the observeEvent() you can use an if/else statement to create a legend based on a group.
+# scenario map
+leaf_scenarios <- leaflet() %>%
+  addTiles(group = "OpenStreetMap") %>%
+  addScaleBar("bottomleft") %>%
+  addPolygons(data = region_poly,
+              color = poly_colors,
+              highlightOptions = highlightOptions(color = "black", weight = 2, bringToFront = TRUE)
+  )
 
 # historical map
 historicalMap = leaflet() %>%
@@ -171,6 +178,13 @@ diseaseRisk_plotly <- function(df, titleName){
   
 }
 
+# made up data for scenarios page
+fig <- plot_ly(y = ~rnorm(50), type = "box") # change y's to x's if you want flipped
+fig <- fig %>% 
+  add_trace(y = ~rnorm(50, 1)) %>% 
+  add_trace(y = ~rnorm(50, 1)) %>%
+  layout(showlegend = FALSE)
+
 # run shiny app
 ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                  # Nowcasts and forecasts page
@@ -188,8 +202,34 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                           )
                  ),
                  
-                 # Scenarios page
-                 tabPanel("Scenarios",
+                 # Management scenarios page
+                 tabPanel("Management scenarios",
+                          leafletOutput("management_map"),
+                          
+                          hr(),
+                          tabsetPanel(type = "tabs",
+                                      tabPanel("Growth anomalies",
+                                               # h3("Growth anomalies"),
+                                               fluidRow(
+                                                 column(4, wellPanel(title = "Adjust scenarios", background = "maroon", solidHeader = TRUE,
+                                                                     sliderInput("colsize_slider", label = ("Mean colony size"), min = -100, max = 100, step = 20, post  = " %", value = 0),
+                                                                     sliderInput("cover_slider", label = ("Host coral cover"), min = -100, max = 100, step = 20, post  = " %", value = 0),
+                                                                     sliderInput("fish_slider", label = ("Fish abundance"), min = -100, max = 100, step = 20, post  = " %", value = 0),
+                                                                     style = "background: white",
+                                                 )
+                                                 ),
+                                                 column(8, wellPanel(plotlyOutput("barplot"),
+                                                                     style = "background: white",))
+                                               )
+                                               
+                                      ),
+                                      # h2("White syndromes"),
+                                      tabPanel("White syndromes")
+                          )
+                 ),
+                 
+                 # sensitivity page
+                 tabPanel("Sensitivity analysis",
                           tabsetPanel(type = "tabs",
                                       tabPanel("Growth anomalies",
                                                sidebarPanel(
@@ -253,15 +293,12 @@ server <- function(input, output, session) {
   })
   
   #create empty vector to hold all click ids
-  # selected_ids <- reactiveValues(ids = vector())
-  
-  #create empty vector to hold all click ids
   selected <- reactiveValues(groups = vector())
   
   observeEvent(input$map1_shape_click, {
     
     # if(is.numeric(input$map1_shape_click$id) == TRUE){
-    if(input$map1_shape_click$group == "Pixel forecasts"){
+    if(input$map1_shape_click$group == "Local forecasts"){
       # selected$groups <- c(selected$groups, input$map_shape_click$id)
       # proxy %>% showGroup(group = input$map_shape_click$id)
       
@@ -280,7 +317,15 @@ server <- function(input, output, session) {
 
   })
   
-    
+  # management scenarios outputs
+  output$management_map <- renderLeaflet({
+    leaf_scenarios
+  })
+  
+  output$barplot <- renderPlotly({
+    fig
+  })
+  
     # scenarios outputs
     # update region selections
     observeEvent(input$ga_region_select, {
