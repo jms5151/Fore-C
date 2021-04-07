@@ -115,6 +115,7 @@ vs_plot_fun <- function(df){
     theme(legend.title=element_blank())
 }
 
+
 button_info = list(
   list(
     active = -1, # not dropdown menu
@@ -124,11 +125,11 @@ button_info = list(
     buttons = list(
       
       list(method = "restyle",
-           args = list("visible", list(TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE)), # first 4 = lines, second 4 = ribbons
+           args = list("visible", rep(list(TRUE), 29*2)), # first 29 = lines, second 29 = ribbons
            label = "Show CI"),
       
       list(method = "restyle",
-           args = list("visible", list(TRUE, TRUE, TRUE, TRUE, FALSE, FALSE, FALSE, FALSE)),
+           args = list("visible", c(rep(list(TRUE), 29), rep(list(FALSE), 29))),
            label = "Hide CI"))
   )
   
@@ -149,8 +150,8 @@ diseaseRisk_plotly <- function(df, titleName){
               split = ~cast, 
               type = 'scatter', 
               mode = 'lines',
-              color = ~as.character(cast),
-              colors = "BrBG",
+              color = ~type,
+              colors = c("Salmon", "Midnight blue"),
               text = ~paste("Date:", Date,
                             "<br>Risk:", round(value*100), "% (", round(Lwr*100), ",", round(Upr*100), ")"),
               hoverinfo = "text") %>%
@@ -159,8 +160,8 @@ diseaseRisk_plotly <- function(df, titleName){
                 split = ~cast, 
                 ymin = ~round(Lwr*100), 
                 ymax = ~round(Upr*100),
-                color = ~as.character(cast),
-                colors = "BrBG", 
+                color = ~type,
+                colors = c("Salmon", "Midnight blue"),
                 opacity=0.3,
                 hoverinfo='skip') %>%
     layout(title = titleName,
@@ -212,7 +213,8 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                                                # h3("Growth anomalies"),
                                                fluidRow(
                                                  column(4, wellPanel(title = "Adjust scenarios", background = "maroon", solidHeader = TRUE,
-                                                                     sliderInput("colsize_slider", label = ("Mean colony size"), min = -100, max = 100, step = 20, post  = " %", value = 0),
+                                                                     setSliderColor(c("Teal", "Orange", "Green"), c(1, 2, 3)),
+                                                                     sliderInput("colsize_slider", label = ("Colony size"), min = -100, max = 100, step = 20, post  = " %", value = 0),
                                                                      sliderInput("cover_slider", label = ("Host coral cover"), min = -100, max = 100, step = 20, post  = " %", value = 0),
                                                                      sliderInput("fish_slider", label = ("Fish abundance"), min = -100, max = 100, step = 20, post  = " %", value = 0),
                                                                      style = "background: white",
@@ -227,60 +229,12 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                                       tabPanel("White syndromes")
                           )
                  ),
-                 
-                 # sensitivity page
-                 tabPanel("Sensitivity analysis",
-                          tabsetPanel(type = "tabs",
-                                      tabPanel("Growth anomalies",
-                                               sidebarPanel(
-                                                 
-                                                 pickerInput("ga_region_select", "Region:",   
-                                                             choices = unique(vs[order(vs$Region),]$Region), 
-                                                             selected = c("Hawaii"),
-                                                             options = list(`actions-box` = TRUE, `none-selected-text` = "Please make a selection!"),
-                                                             multiple = FALSE),
-                                                 
-                                                 pickerInput("ga_vs_select", "Virtual station(s):",
-                                                             choices = vs$Virtual_Stations[vs$Region == "Hawaii"],
-                                                             options = list(`actions-box` = TRUE, `none-selected-text` = "Please make a selection!"),
-                                                             selected = vs$Virtual_Stations[vs$Region == "Hawaii"],
-                                                             multiple = TRUE),
-                                                 
-                                                 "Scenarios:",
-                                                 sliderInput("colsize_slider", label = ("Mean colony size"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
-                                                 sliderInput("cover_slider", label = ("Host coral cover"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
-                                                 sliderInput("fish_slider", label = ("Fish abundance"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
-                                                 sliderInput("depth_slider", label = ("Depth (m)"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
-                                                 sliderInput("temp_slider", label = ("Temperature"), min = -50, max = 50, step=10, width='200px', post  = " %", value = 0),
-                                                 actionButton("reset_input", label = "Reset inputs") # https://stackoverflow.com/questions/24265980/reset-inputs-button-in-shiny-app
-                                               ),
-                                               mainPanel(
-                                                 tabPanel("Disease risk", plotOutput("ga_vs_risk_plot"))
-                                               )
-                                               
-                                      ),
-                                      tabPanel("White syndromes",
-                                               sidebarPanel(
-                                                 
-                                                 pickerInput("region_select", "Region:",   
-                                                             choices = c("Australia", "American Samoa", "Hawaii", "Marianas", "Pacific Remote Island Areas"), 
-                                                             selected = c("Hawaii"),
-                                                             multiple = FALSE),
-                                                 
-                                                 sliderInput("chl_slider", label = h3("Chlorophyll-a"), min = -100, max = 100, step=10, width='200px', post  = " %", value = 0),
-                                                 hr(),
-                                                 sliderInput("coral_slider", label = h3("Mean coral size"), min = 0, max = 100, step=10, width='200px', post  = " cm", value = 20),
-                                                 hr(),
-                                                 actionButton("reset_input", label = "Reset inputs") # https://stackoverflow.com/questions/24265980/reset-inputs-button-in-shiny-app
-                                               ),
-                                               mainPanel(leafletOutput("mymap5"))
-                                      ))
-                 ),
                  # Historical data page
                  tabPanel("Historical data", 
                           div(class="outer",
                               tags$head(includeCSS("styles.css")),
-                              leafletOutput("historical_data_map", width="100%", height="100%"))),
+                              leafletOutput("historical_data_map", width="100%", height="100%"))
+                          ),
                  
                  # About the project page
                  tabPanel("About")
@@ -326,61 +280,6 @@ server <- function(input, output, session) {
     fig
   })
   
-    # scenarios outputs
-    # update region selections
-    observeEvent(input$ga_region_select, {
-      if (input$ga_region_select == "Hawaii") {
-        updatePickerInput(session = session, inputId = "ga_vs_select", 
-                          choices = vs$Virtual_Stations[vs$Region == "Hawaii"], 
-                          selected = vs$Virtual_Stations[vs$Region == "Hawaii"])
-      }
-      
-      if (input$ga_region_select == "Pacific Remote Island Areas") {
-        updatePickerInput(session = session, inputId = "ga_vs_select", 
-                          choices = vs$Virtual_Stations[vs$Region == "Pacific Remote Island Areas"], 
-                          selected = vs$Virtual_Stations[vs$Region == "Pacific Remote Island Areas"])
-      }
-      
-      if (input$ga_region_select == "Australia") {
-        updatePickerInput(session = session, inputId = "ga_vs_select", 
-                          choices = vs$Virtual_Stations[vs$Region == "Australia"], 
-                          selected = vs$Virtual_Stations[vs$Region == "Australia"])
-      }
-      
-      if (input$ga_region_select == "Marianas") {
-        updatePickerInput(session = session, inputId = "ga_vs_select", 
-                          choices = vs$Virtual_Stations[vs$Region == "Marianas"], 
-                          selected = vs$Virtual_Stations[vs$Region == "Marianas"])
-      }
-      
-      if (input$ga_region_select == "American Samoa") {
-        updatePickerInput(session = session, inputId = "ga_vs_select", 
-                          choices = vs$Virtual_Stations[vs$Region == "American Samoa"], 
-                          selected = vs$Virtual_Stations[vs$Region == "American Samoa"])
-      }
-      
-    }, ignoreInit = TRUE)
-    
-    observeEvent(input$vs_select, ignoreInit = TRUE, {
-      updateSelectInput(session, "vs_select",
-                        selected = vs[vs$Region == input$region_select, "Virtual_Stations", drop = TRUE])
-    })
-    
-    # plot disease risk by virtual station and adjust by scenario settings
-    output$ga_vs_risk_plot <- renderPlot({
-      reactive_ga_db <- reactive({
-        vs_long %>% 
-          filter(VS %in% input$ga_vs_select 
-                 & meanColSize_condition == input$colsize_slider
-                 & HostCover_condition == input$cover_slider
-                 & FishAbundance_condition == input$fish_slider
-                 & Depth_condition == input$depth_slider
-                 & HotSnap_condition == input$temp_slider
-          )
-      })
-      vs_plot_fun(reactive_ga_db())
-    })
-    
     # map historical data
     output$historical_data_map <- renderLeaflet({
       historicalMap
