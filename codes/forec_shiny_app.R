@@ -31,6 +31,7 @@ library(xts)
 library(RColorBrewer)
 library(plotly)
 library(shinydashboard)
+library(shinycssloaders)
 
 # load data
 load("Compiled_data/historical_surveys.RData")
@@ -153,7 +154,11 @@ diseaseRisk_plotly <- function(df, titleName){
               color = ~type,
               colors = c("Salmon", "Midnight blue"),
               text = ~paste("Date:", Date,
-                            "<br>Risk:", round(value*100), "% (", round(Lwr*100), ",", round(Upr*100), ")"),
+                            "<br>Disease risk:",
+                            "<br>90th percentile", round(Upr*100), "%", # IQR90
+                            "<br>75th percentile", round(value*100), "%", #IQR75
+                            "<br>50th percentile", round(Lwr*100), "%" #IQR50
+              ),
               hoverinfo = "text") %>%
     add_ribbons(data = df, 
                 x= ~Date, 
@@ -171,7 +176,7 @@ diseaseRisk_plotly <- function(df, titleName){
                         showgrid = F, 
                         range = c(0, 100),
                         title = "Disease risk"),
-           hovermode = 'compare',
+           # hovermode = 'compare',
            font = list(size = 14),
            showlegend = FALSE,
            updatemenus = button_info, 
@@ -192,31 +197,37 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                  tabPanel("Coral disease predictions",
                           div(class="outer",
                               tags$head(includeCSS("styles.css")),
-                              leafletOutput("map1", width = "100%", height = "100%")),
+                              leafletOutput("map1", width = "100%", height = "100%")
+                              ),
                           absolutePanel(id = "controls", class = "panel panel-default",
                                         bottom = 0, right = 0, width = 600, fixed = TRUE,
                                         draggable = FALSE, height = "auto",
-                                        plotlyOutput("plotlyGA",height = 300),
-                                        plotlyOutput("plotlyWS", height = 300),
-                                        style = "opacity: 0.92",
-                                        span(tags$i(h6("Disease forecasts, select a pixel")), style="color:#045a8d")
+                                        span(tags$i(h6("Select a pixel to display disease forecasts"),
+                                                    title = "Description of what is happening here"), 
+                                             style="color:#045a8d"),
+                                        plotlyOutput("plotlyGA", height = 300) %>% withSpinner(color="#D3D3D3"), #type = getOption("spinner.type", 5)),
+                                        plotlyOutput("plotlyWS", height = 300) %>% withSpinner(color="#D3D3D3"),
+                                        style = "opacity: 0.92"
                           )
                  ),
                  
                  # Management scenarios page
-                 tabPanel("Management scenarios",
+                 tabPanel("Mitigation potential", #HTML("Long-term mitigation<br/>potential"),
                           leafletOutput("management_map"),
                           
                           hr(),
                           tabsetPanel(type = "tabs",
                                       tabPanel("Growth anomalies",
-                                               # h3("Growth anomalies"),
                                                fluidRow(
                                                  column(4, wellPanel(title = "Adjust scenarios", background = "maroon", solidHeader = TRUE,
-                                                                     setSliderColor(c("Teal", "Orange", "Green"), c(1, 2, 3)),
-                                                                     sliderInput("colsize_slider", label = ("Colony size"), min = -100, max = 100, step = 20, post  = " %", value = 0),
-                                                                     sliderInput("cover_slider", label = ("Host coral cover"), min = -100, max = 100, step = 20, post  = " %", value = 0),
+                                                                     span(tags$i(h4("Mitigation targets:"), 
+                                                                                 class = "glyphicon glyphicon-info-sign",
+                                                                                 style = "color:#0072B2;",
+                                                                                 title = "Description of what is happening here")
+                                                                     ),                                                                     setSliderColor(c("Teal", "Orange", "Green"), c(1, 2, 3)),
+                                                                     sliderInput("wq_slider", label = ("Water quality"), min = -100, max = 100, step = 20, post  = " %", value = 0),
                                                                      sliderInput("fish_slider", label = ("Fish abundance"), min = -100, max = 100, step = 20, post  = " %", value = 0),
+                                                                     sliderInput("coral_slider", label = ("Coral"), min = -100, max = 100, step = 20, post  = " %", value = 0), #HTML("Coral<br/>Colony size<br/>Host coral cover")
                                                                      style = "background: white",
                                                  )
                                                  ),
@@ -239,7 +250,9 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                  # About the project page
                  tabPanel("About")
                  )
-  
+
+shinyApp(ui, server)
+
 server <- function(input, output, session) { 
     
   output$map1 <- renderLeaflet({
@@ -248,9 +261,12 @@ server <- function(input, output, session) {
   
   #create empty vector to hold all click ids
   selected <- reactiveValues(groups = vector())
+
+  output$plotlyGA <- DT::renderDT(NULL)
+  output$plotlyWS <- DT::renderDT(NULL)
   
   observeEvent(input$map1_shape_click, {
-    
+
     # if(is.numeric(input$map1_shape_click$id) == TRUE){
     if(input$map1_shape_click$group == "Local forecasts"){
       # selected$groups <- c(selected$groups, input$map_shape_click$id)
