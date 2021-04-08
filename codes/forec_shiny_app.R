@@ -43,6 +43,7 @@ load("Compiled_data/spatial_grid.Rds")
 load("Compiled_data/simulated_data_for_dygraphs.RData")
 load("Compiled_data/simulated_data_for_plotlygraphs.RData")
 load("Compiled_data/regional_polygons.Rds")
+load("Compiled_data/mitigation.RData")
 
 # create maps
 bins <- c(0, 0.05, 0.10, 0.15, 0.25, 0.50, 0.75, 1.0)
@@ -184,12 +185,21 @@ diseaseRisk_plotly <- function(df, titleName){
   
 }
 
-# made up data for scenarios page
-fig <- plot_ly(y = ~rnorm(50), type = "box") # change y's to x's if you want flipped
-fig <- fig %>% 
-  add_trace(y = ~rnorm(50, 1)) %>% 
-  add_trace(y = ~rnorm(50, 1)) %>%
-  layout(showlegend = FALSE)
+mitigation_plot_fun <- function(w, f, c){
+  plot_ly(data = w , x = ~Response, y = ~round(estimate*100), error_y = list(value = ~round(sd*100)), type = "bar", color = I("deepskyblue4")) %>%
+    add_trace(data = f , y = ~round(estimate*100), color = I("goldenrod1")) %>%
+    add_trace(data = c , y = ~round(estimate*100), color = I("black")) %>%
+    layout(
+      xaxis = list(showgrid = F, 
+                   title = "",
+                   categoryarray = ~names, categoryorder = "array"), 
+      yaxis = list(showline = T, 
+                   showgrid = F, 
+                   range = c(-100, 100),
+                   title = "Change in disease risk<br>(from current conditions)"),
+      font = list(size = 14),
+      showlegend = FALSE) 
+}
 
 # run shiny app
 ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
@@ -224,7 +234,8 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                                                                                  class = "glyphicon glyphicon-info-sign",
                                                                                  style = "color:#0072B2;",
                                                                                  title = "Description of what is happening here")
-                                                                     ),                                                                     setSliderColor(c("Teal", "Orange", "Green"), c(1, 2, 3)),
+                                                                     ),                                                                     
+                                                                     setSliderColor(c("deepskyblue4", "goldenrod1", "black"), c(1, 2, 3)),
                                                                      sliderInput("wq_slider", label = ("Water quality"), min = -100, max = 100, step = 20, post  = " %", value = 0),
                                                                      sliderInput("fish_slider", label = ("Fish abundance"), min = -100, max = 100, step = 20, post  = " %", value = 0),
                                                                      sliderInput("coral_slider", label = ("Coral"), min = -100, max = 100, step = 20, post  = " %", value = 0), #HTML("Coral<br/>Colony size<br/>Host coral cover")
@@ -250,8 +261,6 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                  # About the project page
                  tabPanel("About")
                  )
-
-shinyApp(ui, server)
 
 server <- function(input, output, session) { 
     
@@ -292,8 +301,29 @@ server <- function(input, output, session) {
     leaf_scenarios
   })
   
-  output$barplot <- renderPlotly({
-    fig
+  observeEvent(input$management_map_shape_click, {
+    
+    if(input$management_map_shape_click$group == "Local forecasts"){
+      
+      mitigate <- subset(mitigation_df, ID == input$management_map_shape_click$id)
+      
+      reactive_w <- reactive({
+        subset(mitigate, Response == "Water quality" & Response_level == input$wq_slider)
+      })
+      
+      reactive_f <- reactive({
+        subset(mitigate, Response == "Fish abundance" & Response_level == input$fish_slider)
+      })
+      
+      reactive_c <- reactive({
+        subset(mitigate, Response == "Coral" & Response_level == input$coral_slider)
+      })
+      
+      output$barplot <- renderPlotly({
+        mitigation_plot_fun(reactive_w(), reactive_f(), reactive_c())
+      })
+      
+    }
   })
   
     # map historical data
