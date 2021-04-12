@@ -44,6 +44,7 @@ load("Compiled_data/simulated_data_for_dygraphs.RData")
 load("Compiled_data/simulated_data_for_plotlygraphs.RData")
 load("Compiled_data/regional_polygons.Rds")
 load("Compiled_data/mitigation.RData")
+load("Compiled_data/baseline.RData")
 
 # create maps
 bins <- c(0, 0.05, 0.10, 0.15, 0.25, 0.50, 0.75, 1.0)
@@ -83,12 +84,26 @@ leaf_reefs <- leaflet() %>%
               paste0(legendLabels) }) 
 
 # scenario map
+# leaf_scenarios <- leaflet() %>%
+#   addTiles(group = "OpenStreetMap") %>%
+#   addScaleBar("bottomleft") %>%
+#   addPolygons(data = region_poly,
+#               color = poly_colors,
+#               highlightOptions = highlightOptions(color = "black", weight = 2, bringToFront = TRUE)
+#   )
+
 leaf_scenarios <- leaflet() %>%
   addTiles(group = "OpenStreetMap") %>%
   addScaleBar("bottomleft") %>%
-  addPolygons(data = region_poly,
-              color = poly_colors,
-              highlightOptions = highlightOptions(color = "black", weight = 2, bringToFront = TRUE)
+  addPolygons(data = reefs2, 
+              layerId = ~ID,
+              fillColor = ~pal(reefs2$drisk),
+              weight = 2,
+              opacity = 1,
+              color = ~pal(reefs2$drisk),
+              fillOpacity = 0.7,
+              group = "Local forecasts",
+              highlightOptions = highlightOptions(color = "black", weight = 3, bringToFront = TRUE)
   )
 
 # historical map
@@ -185,21 +200,50 @@ diseaseRisk_plotly <- function(df, titleName){
   
 }
 
-mitigation_plot_fun <- function(w, f, c){
+mitigation_plot_fun <- function(w, f, c, p){
   plot_ly(data = w , x = ~Response, y = ~round(estimate*100), error_y = list(value = ~round(sd*100)), type = "bar", color = I("deepskyblue4")) %>%
-    add_trace(data = f , y = ~round(estimate*100), color = I("goldenrod1")) %>%
+    add_trace(data = f , y = ~round(estimate*100), color = I("darkred")) %>%
     add_trace(data = c , y = ~round(estimate*100), color = I("black")) %>%
+    add_trace(x = "Combined", y = ~round(w$estimate*100 + f$estimate*100 + c$estimate*100), error_y = list(value = ~round(w$sd*100 + f$sd*100 + c$sd*100)), color = I("goldenrod1")) %>%
     layout(
       xaxis = list(showgrid = F, 
                    title = "",
-                   categoryarray = ~names, categoryorder = "array"), 
+                   categoryorder = "array",
+                   categoryarray = ~c("Water quality",
+                                      "Fish abundance",
+                                      "Coral",
+                                      "Combined"
+                   )
+      ), 
       yaxis = list(showline = T, 
                    showgrid = F, 
                    range = c(-100, 100),
-                   title = "Change in disease risk<br>(from current conditions)"),
+                   title = paste0("Change in disease risk<br>(baseline = ", p, "%)")
+                   ),
       font = list(size = 14),
       showlegend = FALSE) 
 }
+
+scenarios_placeholder_plot <- plot_ly(x = "Water quality", y = 0, type = "bar", color = I("deepskyblue4")) %>%
+  add_trace(x = "Fish abundance", y = 0, color = I("darkred")) %>%
+  add_trace(x = "Coral" , y = 0, color = I("black")) %>%
+  add_trace(x = "Combined", y = 0, color = I("goldenrod1")) %>%
+  layout(
+    xaxis = list(showgrid = F, 
+                 title = "",
+                 categoryorder = "array",
+                 categoryarray = ~c("Water quality",
+                                    "Fish abundance",
+                                    "Coral",
+                                    "Combined"
+                 )
+    ), 
+    yaxis = list(showline = T, 
+                 showgrid = F, 
+                 range = c(-100, 100),
+                 title = "Change in disease risk<br>(from current conditions)"),
+    font = list(size = 14),
+    showlegend = FALSE) 
 
 # run shiny app
 ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
@@ -223,31 +267,46 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                  
                  # Management scenarios page
                  tabPanel("Mitigation potential", #HTML("Long-term mitigation<br/>potential"),
-                          leafletOutput("management_map"),
+                          leafletOutput("management_map", height = "300px") %>% withSpinner(color="#D3D3D3"),
                           
                           hr(),
                           tabsetPanel(type = "tabs",
                                       tabPanel("Growth anomalies",
                                                fluidRow(
-                                                 column(4, wellPanel(title = "Adjust scenarios", background = "maroon", solidHeader = TRUE,
-                                                                     span(tags$i(h4("Mitigation targets:"), 
-                                                                                 class = "glyphicon glyphicon-info-sign",
-                                                                                 style = "color:#0072B2;",
-                                                                                 title = "Description of what is happening here")
-                                                                     ),                                                                     
-                                                                     setSliderColor(c("deepskyblue4", "goldenrod1", "black"), c(1, 2, 3)),
-                                                                     sliderInput("wq_slider", label = ("Water quality"), min = -100, max = 100, step = 20, post  = " %", value = 0),
-                                                                     sliderInput("fish_slider", label = ("Fish abundance"), min = -100, max = 100, step = 20, post  = " %", value = 0),
-                                                                     sliderInput("coral_slider", label = ("Coral"), min = -100, max = 100, step = 20, post  = " %", value = 0), #HTML("Coral<br/>Colony size<br/>Host coral cover")
-                                                                     style = "background: white",
+                                                 column(4, wellPanel(class = "dropdown",
+                                                                     dropMenu(
+                                                                       dropdownButton("Info", icon = icon('info'), size = "xs"),
+                                                                       h3(strong('Information')),
+                                                                       h5('Click on a pixel and adjust sliders to explore coral disease mitigation potential.')
+                                                                     ),
+                                                                     h4("Mitigation targets:"),                        
+                                                                     # colors = deepskyblue4, dark red, black
+                                                                     setSliderColor(c("#00688B", "#8B0000", "#000000"), c(1, 2, 3)),
+                                                                     sliderInput("wq_slider_ga", 
+                                                                                 label = span(h5(strong("Water quality")), 
+                                                                                              tags$i(h6(textOutput("chlA_value"))),
+                                                                                              tags$i(h6(textOutput("kd_value"))),
+                                                                                              style="color:#00688B"),
+                                                                                 min = -100, max = 100, step = 20, post  = " %", value = 0),
+                                                                     sliderInput("fish_slider_ga", 
+                                                                                 label = span(h5(strong("Fish abundance")), 
+                                                                                              tags$i(h6(textOutput("fish_value"))),
+                                                                                              style="color:#8B0000"),
+                                                                                 min = -100, max = 100, step = 20, post  = " %", value = 0),
+                                                                     sliderInput("coral_slider_ga", 
+                                                                                 label = span(h5(strong("Coral")), 
+                                                                                              tags$i(h6(textOutput("corsize_value"))),
+                                                                                              tags$i(h6(textOutput("corcov_value"))),
+                                                                                              style="color:#000000"),
+                                                                                 min = -100, max = 100, step = 20, post  = " %", value = 0), #HTML("Coral<br/>Colony size<br/>Host coral cover")
+                                                                     style = "background: white"
                                                  )
                                                  ),
                                                  column(8, wellPanel(plotlyOutput("barplot"),
                                                                      style = "background: white",))
                                                )
                                                
-                                      ),
-                                      # h2("White syndromes"),
+                                      ),                                
                                       tabPanel("White syndromes")
                           )
                  ),
@@ -297,35 +356,53 @@ server <- function(input, output, session) {
   })
   
   # management scenarios outputs
+  # management scenarios outputs
   output$management_map <- renderLeaflet({
+    # leaf_reefs
     leaf_scenarios
   })
   
+  output$barplot <- renderPlotly({scenarios_placeholder_plot})
+  
+  #create empty vector to hold all click ids
+  selected2 <- reactiveValues(groups = vector())
+  
   observeEvent(input$management_map_shape_click, {
+    
     
     if(input$management_map_shape_click$group == "Local forecasts"){
       
       mitigate <- subset(mitigation_df, ID == input$management_map_shape_click$id)
+      baseVals <- subset(baseline_vals, ID == input$management_map_shape_click$id)
       
       reactive_w <- reactive({
-        subset(mitigate, Response == "Water quality" & Response_level == input$wq_slider)
+        subset(mitigate, Response == "Water quality" & Response_level == input$wq_slider_ga)
       })
       
       reactive_f <- reactive({
-        subset(mitigate, Response == "Fish abundance" & Response_level == input$fish_slider)
+        subset(mitigate, Response == "Fish abundance" & Response_level == input$fish_slider_ga)
       })
       
       reactive_c <- reactive({
-        subset(mitigate, Response == "Coral" & Response_level == input$coral_slider)
+        subset(mitigate, Response == "Coral" & Response_level == input$coral_slider_ga)
       })
       
       output$barplot <- renderPlotly({
-        mitigation_plot_fun(reactive_w(), reactive_f(), reactive_c())
+        mitigation_plot_fun(reactive_w(), reactive_f(), reactive_c(), round(baseVals$p*100))
       })
       
+      output$chlA_value <- renderText({ paste0("current chl-a = ", round(baseVals$chla, 2)) })
+      
+      output$kd_value <- renderText({ paste0("current kd(490) = ", round(baseVals$kd490, 2)) })
+      
+      output$fish_value <- renderText({ paste0("current fish = ", round(baseVals$fish)) })
+      
+      output$corsize_value <- renderText({ paste0("current median colony size = ", round(baseVals$coral_size), "cm") })
+      
+      output$corcov_value <- renderText({ paste0("current host cover = ", round(baseVals$host_cover), "%") })
+      
     }
-  })
-  
+  })  
     # map historical data
     output$historical_data_map <- renderLeaflet({
       historicalMap
