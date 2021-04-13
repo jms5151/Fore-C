@@ -14,6 +14,8 @@ rm(list=ls()) #remove previous variable assignments
 # https://stackoverflow.com/questions/65893124/select-multiple-items-using-map-click-in-leaflet-linked-to-selectizeinput-in/65935636#65935636
 ##########
 
+# create bounding box to select multiple pixels: https://redoakstrategic.com/geoshaper/
+
 # load libraries
 library(shiny)
 library(shinythemes)
@@ -32,15 +34,16 @@ library(RColorBrewer)
 library(plotly)
 library(shinydashboard)
 library(shinycssloaders)
+library(leaflet.extras)
 
 # load data
 load("Compiled_data/historical_surveys.RData")
-vs <- read.csv("Data/virtual_stations.csv", stringsAsFactors = F)
-load("Compiled_data/vs_scenarios_long.RData")
+# vs <- read.csv("Data/virtual_stations.csv", stringsAsFactors = F)
+# load("Compiled_data/vs_scenarios_long.RData")
 source("codes/addScaleBar.R")
 load("Compiled_data/grid.RData")
 load("Compiled_data/spatial_grid.Rds")
-load("Compiled_data/simulated_data_for_dygraphs.RData")
+# load("Compiled_data/simulated_data_for_dygraphs.RData")
 load("Compiled_data/simulated_data_for_plotlygraphs.RData")
 load("Compiled_data/regional_polygons.Rds")
 load("Compiled_data/mitigation.RData")
@@ -51,12 +54,12 @@ bins <- c(0, 0.05, 0.10, 0.15, 0.25, 0.50, 0.75, 1.0)
 pal <- colorBin(brewer.pal(length(bins), "YlOrRd"), domain = reefs2$drisk, bins = bins, na.color = "transparent")
 legendLabels <- c("0-5", "6-10", "11-15", "16-25", "26-50", "51-75", "76-100", "NA")
 
-poly_colors <- brewer.pal(length(region_poly), "Dark2")
+# poly_colors <- brewer.pal(length(region_poly), "Dark2")
 
 leaf_reefs <- leaflet() %>%
   addTiles(group = "OpenStreetMap") %>%
   addTiles(urlTemplate="http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", group = "Satellite") %>%
-  addScaleBar("bottomleft") %>%
+  addScaleBar("topright") %>% # bottomleft
   addPolygons(data = reefs2, 
               layerId = ~ID,
               fillColor = ~pal(reefs2$drisk),
@@ -114,24 +117,6 @@ historicalMap = leaflet() %>%
                    , clusterOptions = markerClusterOptions()) %>%
   addScaleBar() %>%
   setView(lng = -180, lat = 16.4502 , zoom = 3)
-
-# plotting function to visualize disease by virtual station
-vs_plot_fun <- function(df){
-  ggplot(data = df, aes(x = Date, y = Estimate*100, group = VS, color = VS)) + 
-    geom_point(size = 2) +
-    geom_line(size = 1) +
-    geom_ribbon(aes(ymin = Q2.5*100, 
-                    ymax = Q97.5*(2/3)*100, # just a placeholder to limit se upper bound, will use 75%ile later when not using brms
-                    group = VS,
-                    fill = VS), 
-                alpha = 0.1) +  
-    ylim(0,100) +
-    xlab("") +
-    ylab("Predicted disease prevalence (%)") +
-    theme_classic(base_size = 16) + 
-    theme(legend.title=element_blank())
-}
-
 
 button_info = list(
   list(
@@ -197,8 +182,26 @@ diseaseRisk_plotly <- function(df, titleName){
            showlegend = FALSE,
            updatemenus = button_info, 
            margin = plotly_margins)      
-  
 }
+
+diseaseRisk_placeholder_plot <- function(titleName) {
+  plot_ly() %>%
+    add_trace(x = ~range(p$Date), 
+              y = 0, 
+              type = 'scatter', 
+              mode = 'lines') %>%
+    layout(title = titleName,
+           xaxis = list(showgrid = F, 
+                        title = ""), 
+           yaxis = list(showline = T, 
+                        showgrid = F, 
+                        range = c(0, 100),
+                        title = "Disease risk"),
+           font = list(size = 14),
+           showlegend = FALSE,
+           margin = plotly_margins)
+}
+
 
 mitigation_plot_fun <- function(w, f, c, p){
   plot_ly(data = w , x = ~Response, y = ~round(estimate*100), error_y = list(value = ~round(sd*100)), type = "bar", color = I("deepskyblue4")) %>%
@@ -249,19 +252,21 @@ scenarios_placeholder_plot <- plot_ly(x = "Water quality", y = 0, type = "bar", 
 ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                  # Nowcasts and forecasts page
                  tabPanel("Coral disease predictions",
-                          div(class="outer",
-                              tags$head(includeCSS("styles.css")),
-                              leafletOutput("map1", width = "100%", height = "100%")
-                              ),
+                          leafletOutput("mymap") %>% withSpinner(color="#D3D3D3"),
+                          hr(),
+                          fluidRow(
+                            column(6, plotlyOutput("plotlyGA") %>% withSpinner(color="#D3D3D3")),
+                            column(6, plotlyOutput("plotlyWS",) %>% withSpinner(color="#D3D3D3"))
+                          ),
                           absolutePanel(id = "controls", class = "panel panel-default",
-                                        bottom = 0, right = 0, width = 600, fixed = TRUE,
+                                        top = 450, left = 30, fixed = TRUE,
                                         draggable = FALSE, height = "auto",
-                                        span(tags$i(h6("Select a pixel to display disease forecasts"),
-                                                    title = "Description of what is happening here"), 
-                                             style="color:#045a8d"),
-                                        plotlyOutput("plotlyGA", height = 300) %>% withSpinner(color="#D3D3D3"), #type = getOption("spinner.type", 5)),
-                                        plotlyOutput("plotlyWS", height = 300) %>% withSpinner(color="#D3D3D3"),
-                                        style = "opacity: 0.92"
+                                        class = "dropdown",
+                                        dropMenu(
+                                          dropdownButton(icon = icon('info'), size = "xs"),
+                                          h3(strong('Information')),
+                                          h5('Click on a pixel to explore near-real time coral disease forecasts for a given location')
+                                        )
                           )
                  ),
                  
@@ -275,7 +280,7 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                                                fluidRow(
                                                  column(4, wellPanel(class = "dropdown",
                                                                      dropMenu(
-                                                                       dropdownButton("Info", icon = icon('info'), size = "xs"),
+                                                                       dropdownButton("Info2", icon = icon('info'), size = "xs"),
                                                                        h3(strong('Information')),
                                                                        h5('Click on a pixel and adjust sliders to explore coral disease mitigation potential.')
                                                                      ),
@@ -330,8 +335,11 @@ server <- function(input, output, session) {
   #create empty vector to hold all click ids
   selected <- reactiveValues(groups = vector())
 
-  output$plotlyGA <- DT::renderDT(NULL)
-  output$plotlyWS <- DT::renderDT(NULL)
+  # output$plotlyGA <- DT::renderDT(NULL)
+  # output$plotlyWS <- DT::renderDT(NULL)
+  
+  output$plotlyGA <- renderPlotly({diseaseRisk_placeholder_plot("Growth anomalies")})
+  output$plotlyWS <- renderPlotly({diseaseRisk_placeholder_plot("White syndromes")})
   
   observeEvent(input$map1_shape_click, {
 
@@ -391,16 +399,27 @@ server <- function(input, output, session) {
         mitigation_plot_fun(reactive_w(), reactive_f(), reactive_c(), round(baseVals$p*100))
       })
       
-      output$chlA_value <- renderText({ paste0("current chl-a = ", round(baseVals$chla, 2)) })
+      output$chlA_value <- renderText({ paste0("chl-a: baseline = ", round(baseVals$chla, 2), 
+                                               "; adjusted = ", 
+                                               round(baseVals$chla + baseVals$chla * (input$wq_slider_ga/100), 2)) })
       
-      output$kd_value <- renderText({ paste0("current kd(490) = ", round(baseVals$kd490, 2)) })
+      output$kd_value <- renderText({ paste0("kd(490): baseline = ", round(baseVals$kd490, 2),
+                                             "; adjusted = ", 
+                                             round(baseVals$kd490 + baseVals$kd490 * (input$wq_slider_ga/100), 2)) })
       
-      output$fish_value <- renderText({ paste0("current fish = ", round(baseVals$fish)) })
+      output$fish_value <- renderText({ paste0("fish: baseline = ", round(baseVals$fish),
+                                               "; adjusted = ", 
+                                               round(baseVals$fish + baseVals$fish * (input$fish_slider_ga/100), 2)) })
       
-      output$corsize_value <- renderText({ paste0("current median colony size = ", round(baseVals$coral_size), "cm") })
+      output$corsize_value <- renderText({ paste0("Median colony size: baseline = ", round(baseVals$coral_size), 
+                                                  "cm; adjusted = ",
+                                                  round(baseVals$coral_size + baseVals$coral_size * (input$coral_slider_ga/100), 2),
+                                                  "cm") })
       
-      output$corcov_value <- renderText({ paste0("current host cover = ", round(baseVals$host_cover), "%") })
-      
+      output$corcov_value <- renderText({ paste0("Host cover: baseline = ", round(baseVals$host_cover), 
+                                                 "%; adjusted = ",
+                                                 round(baseVals$host_cover + baseVals$host_cover * (input$coral_slider_ga/100), 2),
+                                                 "%") })
     }
   })  
     # map historical data
