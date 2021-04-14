@@ -53,8 +53,7 @@ load("Compiled_data/baseline.RData")
 bins <- c(0, 0.05, 0.10, 0.15, 0.25, 0.50, 0.75, 1.0)
 pal <- colorBin(brewer.pal(length(bins), "YlOrRd"), domain = reefs2$drisk, bins = bins, na.color = "transparent")
 legendLabels <- c("0-5", "6-10", "11-15", "16-25", "26-50", "51-75", "76-100", "NA")
-
-# poly_colors <- brewer.pal(length(region_poly), "Dark2")
+poly_colors <- brewer.pal(length(region_poly), "Dark2")
 
 leaf_reefs <- leaflet() %>%
   addTiles(group = "OpenStreetMap") %>%
@@ -69,22 +68,33 @@ leaf_reefs <- leaflet() %>%
               fillOpacity = 0.7,
               group = "Local forecasts",
               highlightOptions = highlightOptions(color = "black", weight = 3, bringToFront = TRUE)
-              ) %>%
+  ) %>%
   addPolygons(data = region_poly,
               group = "Regional forecasts",
+              layerId = ~ID,
               color = poly_colors,
               highlightOptions = highlightOptions(color = "black", weight = 2, bringToFront = TRUE)
-              ) %>%
+  ) %>%
+  addDrawToolbar(
+    targetGroup='draw',
+    polylineOptions = FALSE,
+    markerOptions = FALSE,
+    circleMarkerOptions = FALSE,
+    circleOptions = FALSE,
+    polygonOptions = drawPolygonOptions(),
+    rectangleOptions = drawRectangleOptions(),
+    editOptions = editToolbarOptions(selectedPathOptions = selectedPathOptions())
+  ) %>%
   addLayersControl(
     overlayGroups = c("Local forecasts", "Regional forecasts"),
     baseGroups = c("OpenStreetMap", "Satellite"),
     options = layersControlOptions(collapsed = FALSE), # icon versus buttons with text
-    position = c("topleft")) %>%
+    position = c("bottomright")) %>%
   hideGroup(c("Regional forecasts")) %>% 
-  leaflet::addLegend("topleft", pal = pal, values = reefs2$drisk,
-            title = "Disease risk (%)",
-            labFormat = function(type, cuts, p) {  # Here's the trick
-              paste0(legendLabels) }) 
+  leaflet::addLegend("bottomright", pal = pal, values = reefs2$drisk,
+                     title = "Disease risk (%)",
+                     labFormat = function(type, cuts, p) {  # Here's the trick
+                       paste0(legendLabels) }) 
 
 # scenario map
 # leaf_scenarios <- leaflet() %>%
@@ -252,7 +262,7 @@ scenarios_placeholder_plot <- plot_ly(x = "Water quality", y = 0, type = "bar", 
 ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                  # Nowcasts and forecasts page
                  tabPanel("Coral disease predictions",
-                          leafletOutput("mymap") %>% withSpinner(color="#D3D3D3"),
+                          leafletOutput("map1") %>% withSpinner(color="#D3D3D3"),
                           hr(),
                           fluidRow(
                             column(6, plotlyOutput("plotlyGA") %>% withSpinner(color="#D3D3D3")),
@@ -273,9 +283,11 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                  # Management scenarios page
                  tabPanel("Mitigation potential", #HTML("Long-term mitigation<br/>potential"),
                           leafletOutput("management_map", height = "300px") %>% withSpinner(color="#D3D3D3"),
-                          
+                          # set all slider colors at once, colors = deepskyblue4, dark red, black repeated
+                          setSliderColor(c("#00688B", "#8B0000", "#000000", "#00688B", "#8B0000", "#000000"), c(1, 2, 3, 4, 5, 6)),
                           hr(),
                           tabsetPanel(type = "tabs",
+                                      
                                       tabPanel("Growth anomalies",
                                                fluidRow(
                                                  column(4, wellPanel(class = "dropdown",
@@ -284,35 +296,61 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                                                                        h3(strong('Information')),
                                                                        h5('Click on a pixel and adjust sliders to explore coral disease mitigation potential.')
                                                                      ),
-                                                                     h4("Mitigation targets:"),                        
-                                                                     # colors = deepskyblue4, dark red, black
-                                                                     setSliderColor(c("#00688B", "#8B0000", "#000000"), c(1, 2, 3)),
+                                                                     # h4("Mitigation targets:"), 
+                                                                     span(h5(strong("Mitigation targets:")), 
+                                                                          tags$i(h6(textOutput("Mitigation_text_ga")))),
                                                                      sliderInput("wq_slider_ga", 
                                                                                  label = span(h5(strong("Water quality")), 
-                                                                                              tags$i(h6(textOutput("chlA_value"))),
-                                                                                              tags$i(h6(textOutput("kd_value"))),
+                                                                                              tags$i(h6(textOutput("chlA_value_ga"))),
+                                                                                              tags$i(h6(textOutput("kd_value_ga"))),
                                                                                               style="color:#00688B"),
                                                                                  min = -100, max = 100, step = 20, post  = " %", value = 0),
                                                                      sliderInput("fish_slider_ga", 
                                                                                  label = span(h5(strong("Fish abundance")), 
-                                                                                              tags$i(h6(textOutput("fish_value"))),
+                                                                                              tags$i(h6(textOutput("fish_value_ga"))),
                                                                                               style="color:#8B0000"),
                                                                                  min = -100, max = 100, step = 20, post  = " %", value = 0),
                                                                      sliderInput("coral_slider_ga", 
                                                                                  label = span(h5(strong("Coral")), 
-                                                                                              tags$i(h6(textOutput("corsize_value"))),
-                                                                                              tags$i(h6(textOutput("corcov_value"))),
+                                                                                              tags$i(h6(textOutput("corsize_value_ga"))),
+                                                                                              tags$i(h6(textOutput("corcov_value_ga"))),
                                                                                               style="color:#000000"),
                                                                                  min = -100, max = 100, step = 20, post  = " %", value = 0), #HTML("Coral<br/>Colony size<br/>Host coral cover")
                                                                      style = "background: white"
                                                  )
                                                  ),
-                                                 column(8, wellPanel(plotlyOutput("barplot"),
-                                                                     style = "background: white",))
+                                                 column(8, wellPanel(plotlyOutput("barplot_ga"),
+                                                                     style = "background: white"))
                                                )
                                                
                                       ),                                
-                                      tabPanel("White syndromes")
+                                      tabPanel("White syndromes",
+                                               column(4, wellPanel(span(h5(strong("Mitigation targets:")), 
+                                                                        tags$i(h6(textOutput("Mitigation_text_ws")))),
+
+                                                                   sliderInput("wq_slider_ws", 
+                                                                               label = span(h5(strong("Water quality")), 
+                                                                                            tags$i(h6(textOutput("chlA_value_ws"))),
+                                                                                            tags$i(h6(textOutput("kd_value_ws"))),
+                                                                                            style="color:#00688B"),
+                                                                               min = -100, max = 100, step = 20, post  = " %", value = 0),
+                                                                   sliderInput("fish_slider_ws", 
+                                                                               label = span(h5(strong("Fish abundance")), 
+                                                                                            tags$i(h6(textOutput("fish_value_ws"))),
+                                                                                            style="color:#8B0000"),
+                                                                               min = -100, max = 100, step = 20, post  = " %", value = 0),
+                                                                   sliderInput("coral_slider_ws", 
+                                                                               label = span(h5(strong("Coral")), 
+                                                                                            tags$i(h6(textOutput("corsize_value_ws"))),
+                                                                                            tags$i(h6(textOutput("corcov_value_ws"))),
+                                                                                            style="color:#000000"),
+                                                                               min = -100, max = 100, step = 20, post  = " %", value = 0), #HTML("Coral<br/>Colony size<br/>Host coral cover")
+                                                                   style = "background: white")
+                                               ),
+                                               column(8, wellPanel(plotlyOutput("barplot_ws"),
+                                                                   style = "background: white"))
+                                      )
+                                      
                           )
                  ),
                  # Historical data page
@@ -335,22 +373,16 @@ server <- function(input, output, session) {
   #create empty vector to hold all click ids
   selected <- reactiveValues(groups = vector())
 
-  # output$plotlyGA <- DT::renderDT(NULL)
-  # output$plotlyWS <- DT::renderDT(NULL)
-  
   output$plotlyGA <- renderPlotly({diseaseRisk_placeholder_plot("Growth anomalies")})
   output$plotlyWS <- renderPlotly({diseaseRisk_placeholder_plot("White syndromes")})
   
   observeEvent(input$map1_shape_click, {
 
-    # if(is.numeric(input$map1_shape_click$id) == TRUE){
     if(input$map1_shape_click$group == "Local forecasts"){
-      # selected$groups <- c(selected$groups, input$map_shape_click$id)
-      # proxy %>% showGroup(group = input$map_shape_click$id)
-      
+
       z <- subset(p, ID == input$map1_shape_click$id)
       z2  <- subset(p, ID == input$map1_shape_click$id + 1)
-      # https://rstudio.github.io/dygraphs/gallery-upper-lower-bars.html
+
       output$plotlyGA <- renderPlotly({
         diseaseRisk_plotly(z, "Growth anomalies")
       })
@@ -380,6 +412,7 @@ server <- function(input, output, session) {
     
     if(input$management_map_shape_click$group == "Local forecasts"){
       
+      # GA tab
       mitigate <- subset(mitigation_df, ID == input$management_map_shape_click$id)
       baseVals <- subset(baseline_vals, ID == input$management_map_shape_click$id)
       
@@ -395,30 +428,78 @@ server <- function(input, output, session) {
         subset(mitigate, Response == "Coral" & Response_level == input$coral_slider_ga)
       })
       
-      output$barplot <- renderPlotly({
+      output$barplot_ga <- renderPlotly({
         mitigation_plot_fun(reactive_w(), reactive_f(), reactive_c(), round(baseVals$p*100))
       })
       
-      output$chlA_value <- renderText({ paste0("chl-a: baseline = ", round(baseVals$chla, 2), 
+      output$Mitigation_text_ga <- renderText({ paste0("Baseline disease risk in this location is ", 
+                                                    round(baseVals$p*100), "%") })
+      
+      output$chlA_value_ga <- renderText({ paste0("chl-a: baseline = ", round(baseVals$chla, 2), 
                                                "; adjusted = ", 
                                                round(baseVals$chla + baseVals$chla * (input$wq_slider_ga/100), 2)) })
       
-      output$kd_value <- renderText({ paste0("kd(490): baseline = ", round(baseVals$kd490, 2),
+      output$kd_value_ga <- renderText({ paste0("kd(490): baseline = ", round(baseVals$kd490, 2),
                                              "; adjusted = ", 
                                              round(baseVals$kd490 + baseVals$kd490 * (input$wq_slider_ga/100), 2)) })
       
-      output$fish_value <- renderText({ paste0("fish: baseline = ", round(baseVals$fish),
+      output$fish_value_ga <- renderText({ paste0("fish: baseline = ", round(baseVals$fish),
                                                "; adjusted = ", 
                                                round(baseVals$fish + baseVals$fish * (input$fish_slider_ga/100), 2)) })
       
-      output$corsize_value <- renderText({ paste0("Median colony size: baseline = ", round(baseVals$coral_size), 
+      output$corsize_value_ga <- renderText({ paste0("Median colony size: baseline = ", round(baseVals$coral_size), 
                                                   "cm; adjusted = ",
                                                   round(baseVals$coral_size + baseVals$coral_size * (input$coral_slider_ga/100), 2),
                                                   "cm") })
       
-      output$corcov_value <- renderText({ paste0("Host cover: baseline = ", round(baseVals$host_cover), 
+      output$corcov_value_ga <- renderText({ paste0("Host cover: baseline = ", round(baseVals$host_cover), 
                                                  "%; adjusted = ",
                                                  round(baseVals$host_cover + baseVals$host_cover * (input$coral_slider_ga/100), 2),
+                                                 "%") })
+      
+      # WS tab
+      mitigate <- subset(mitigation_df, ID == input$management_map_shape_click$id)
+      baseVals <- subset(baseline_vals, ID == input$management_map_shape_click$id)
+      
+      reactive_w <- reactive({
+        subset(mitigate, Response == "Water quality" & Response_level == input$wq_slider_ws)
+      })
+      
+      reactive_f <- reactive({
+        subset(mitigate, Response == "Fish abundance" & Response_level == input$fish_slider_ws)
+      })
+      
+      reactive_c <- reactive({
+        subset(mitigate, Response == "Coral" & Response_level == input$coral_slider_ws)
+      })
+      
+      output$barplot_ws <- renderPlotly({
+        mitigation_plot_fun(reactive_w(), reactive_f(), reactive_c(), round(baseVals$p*100))
+      })
+      
+      output$Mitigation_text_ws <- renderText({ paste0("Baseline disease risk in this location is ", 
+                                                    round(baseVals$p*100), "%") })
+      
+      output$chlA_value_ws <- renderText({ paste0("chl-a: baseline = ", round(baseVals$chla, 2), 
+                                               "; adjusted = ", 
+                                               round(baseVals$chla + baseVals$chla * (input$wq_slider_ws/100), 2)) })
+      
+      output$kd_value_ws <- renderText({ paste0("kd(490): baseline = ", round(baseVals$kd490, 2),
+                                             "; adjusted = ", 
+                                             round(baseVals$kd490 + baseVals$kd490 * (input$wq_slider_ws/100), 2)) })
+      
+      output$fish_value_ws <- renderText({ paste0("fish: baseline = ", round(baseVals$fish),
+                                               "; adjusted = ", 
+                                               round(baseVals$fish + baseVals$fish * (input$fish_slider_ws/100), 2)) })
+      
+      output$corsize_value_ws <- renderText({ paste0("Median colony size: baseline = ", round(baseVals$coral_size), 
+                                                  "cm; adjusted = ",
+                                                  round(baseVals$coral_size + baseVals$coral_size * (input$coral_slider_ws/100), 2),
+                                                  "cm") })
+      
+      output$corcov_value_ws <- renderText({ paste0("Host cover: baseline = ", round(baseVals$host_cover), 
+                                                 "%; adjusted = ",
+                                                 round(baseVals$host_cover + baseVals$host_cover * (input$coral_slider_ws/100), 2),
                                                  "%") })
     }
   })  
