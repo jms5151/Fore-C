@@ -8,6 +8,7 @@ library(rgdal)
 library(dplyr)
 
 load("Compiled_data/grid.RData")
+regions_df <- read.csv("Data/regional_polygon_coords.csv")
 
 create_forec_poly <- function(df, minLat, maxLat, minLon, maxLon, polyName){
   # subset data
@@ -19,16 +20,29 @@ create_forec_poly <- function(df, minLat, maxLat, minLon, maxLon, polyName){
   x <- as(x, "SpatialPolygonsDataFrame") 
   # aggregate polygon pixels to VS/regional polygon
   polya <- aggregate(x, dissolve = TRUE)
-  # dynamically rename
-  assign(x = polyName, value = polya)
-  # save
-  save(list = polyName, file = paste0("Compiled_data/regional_polygons/", polyName, ".Rds"))
+  polya$ID <- polyName
+  polya <- spChFIDs(polya, polyName)
 }
 
-# west amd south are negative
-create_forec_poly(reefsDF, -30, -8, 140, 155, "GBR")
-create_forec_poly(reefsDF, 18, 30, -180, -152, "Hawaii")
-create_forec_poly(reefsDF, 12, 21, 143, 147, "CNMI")
-create_forec_poly(reefsDF, -16, -10, -174, -167, "Samoas")
-create_forec_poly(reefsDF, 18, 21, 165, 168, "Wake")
-create_forec_poly(reefsDF, -2, 18, -178, -159, "PRIAs")
+
+for(i in 1:15){ # keep PRIAs as one polygon for now, below row 14 splits them by smaller island groups
+  x <- create_forec_poly(reefsDF, regions_df$lat1[i], regions_df$lat2[i], regions_df$lon1[i], regions_df$lon2[i], regions_df$region[i])
+  assign(regions_df$region[i], x)
+  x <- NULL
+}
+
+# combine polygons data
+listPolys <- Filter(function(x) is(x, "SpatialPolygons"), mget(ls()))
+region_poly <- do.call(rbind, listPolys)
+
+# check polygons merged correctly by mapping
+plot(region_poly)
+
+library(leaflet)
+leaflet() %>%
+  addTiles(group = "OpenStreetMap") %>%
+  addPolygons(data = region_poly,
+              color = brewer.pal(length(region_poly), "Dark2"))
+
+# save data
+save(region_poly, file = "Compiled_data/regional_polygons.Rds")
