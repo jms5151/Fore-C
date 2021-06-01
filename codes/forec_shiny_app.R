@@ -19,7 +19,6 @@ rm(list=ls()) #remove previous variable assignments
 # load libraries
 library(shiny)
 library(shinythemes)
-library(ggridges)
 library(ggplot2)
 library(leaflet)
 library(raster)
@@ -28,7 +27,7 @@ library(tidyverse)
 library(shinyWidgets)
 library(rgdal) # needed if using clickable polygons
 library(sf) # needed if using clickable polygons
-library(dygraphs)
+# library(dygraphs)
 library(xts)
 library(RColorBrewer)
 library(plotly)
@@ -38,20 +37,22 @@ library(leaflet.extras)
 
 # load data
 load("Compiled_data/historical_surveys.RData")
-# vs <- read.csv("Data/virtual_stations.csv", stringsAsFactors = F)
-# load("Compiled_data/vs_scenarios_long.RData")
 source("codes/addScaleBar.R")
 load("Compiled_data/grid.RData")
 load("Compiled_data/spatial_grid.Rds")
-# load("Compiled_data/simulated_data_for_dygraphs.RData")
 load("Compiled_data/simulated_data_for_plotlygraphs.RData")
 load("Compiled_data/regional_polygons.Rds")
 load("Compiled_data/mitigation.RData")
 load("Compiled_data/baseline.RData")
+load("Compiled_data/pixels_in_regional_polygons.RData")
+load("Compiled_data/simulated_data_for_regional_plotlygraphs.RData")
 
 # create maps
-bins <- c(0, 0.05, 0.10, 0.15, 0.25, 0.50, 0.75, 1.0)
-pal <- colorBin(brewer.pal(length(bins), "YlOrRd"), domain = reefs2$drisk, bins = bins, na.color = "transparent")
+# bins <- c(0, 0.05, 0.10, 0.15, 0.25, 0.50, 0.75, 1.0)
+bins <- c(0, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 1.0)
+pal <- colorBin(brewer.pal(length(bins), "Oranges"), domain = reefs2$drisk, bins = bins, na.color = "transparent")
+# bins <- c(1.0, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0) # just for this simulated data
+# pal <- colorBin(brewer.pal(length(bins), "RdYlBu"), domain = reefs2$drisk, bins = bins, na.color = "transparent")
 legendLabels <- c("0-5", "6-10", "11-15", "16-25", "26-50", "51-75", "76-100", "NA")
 poly_colors <- brewer.pal(length(region_poly), "Dark2")
 
@@ -381,16 +382,31 @@ server <- function(input, output, session) {
     if(input$map1_shape_click$group == "Local forecasts"){
 
       z <- subset(p, ID == input$map1_shape_click$id)
-      z2  <- subset(p, ID == input$map1_shape_click$id + 1)
+      # z2  <- subset(p, ID == input$map1_shape_click$id + 1)
 
       output$plotlyGA <- renderPlotly({
         diseaseRisk_plotly(z, "Growth anomalies")
       })
       
-      output$plotlyWS <- renderPlotly({
-        diseaseRisk_plotly(z2, "White syndromes")
-      })
+      # output$plotlyWS <- renderPlotly({
+      #   diseaseRisk_plotly(z2, "White syndromes")
+      # })
 
+    }
+    
+    else if(input$map1_shape_click$group == "Regional forecasts"){
+      
+      z3 <- subset(regional_simulated_data, PolygonID == input$map1_shape_click$id)
+      z4  <- subset(regional_simulated_data, PolygonID == input$map1_shape_click$id)
+      
+      output$plotlyGA <- renderPlotly({
+        diseaseRisk_plotly(z3, "Growth anomalies")
+      })
+      
+      output$plotlyWS <- renderPlotly({
+        diseaseRisk_plotly(z4, "White syndromes")
+      })
+      
     }
 
   })
@@ -416,20 +432,20 @@ server <- function(input, output, session) {
       mitigate <- subset(mitigation_df, ID == input$management_map_shape_click$id)
       baseVals <- subset(baseline_vals, ID == input$management_map_shape_click$id)
       
-      reactive_w <- reactive({
+      reactive_w_ga <- reactive({
         subset(mitigate, Response == "Water quality" & Response_level == input$wq_slider_ga)
       })
       
-      reactive_f <- reactive({
+      reactive_f_ga <- reactive({
         subset(mitigate, Response == "Fish abundance" & Response_level == input$fish_slider_ga)
       })
       
-      reactive_c <- reactive({
+      reactive_c_ga <- reactive({
         subset(mitigate, Response == "Coral" & Response_level == input$coral_slider_ga)
       })
       
       output$barplot_ga <- renderPlotly({
-        mitigation_plot_fun(reactive_w(), reactive_f(), reactive_c(), round(baseVals$p*100))
+        mitigation_plot_fun(reactive_w_ga(), reactive_f_ga(), reactive_c_ga(), round(baseVals$p*100))
       })
       
       output$Mitigation_text_ga <- renderText({ paste0("Baseline disease risk in this location is ", 
@@ -445,36 +461,36 @@ server <- function(input, output, session) {
       
       output$fish_value_ga <- renderText({ paste0("fish: baseline = ", round(baseVals$fish),
                                                "; adjusted = ", 
-                                               round(baseVals$fish + baseVals$fish * (input$fish_slider_ga/100), 2)) })
+                                               round(baseVals$fish + baseVals$fish * (input$fish_slider_ga/100))) })
       
       output$corsize_value_ga <- renderText({ paste0("Median colony size: baseline = ", round(baseVals$coral_size), 
                                                   "cm; adjusted = ",
-                                                  round(baseVals$coral_size + baseVals$coral_size * (input$coral_slider_ga/100), 2),
+                                                  round(baseVals$coral_size + baseVals$coral_size * (input$coral_slider_ga/100)),
                                                   "cm") })
       
       output$corcov_value_ga <- renderText({ paste0("Host cover: baseline = ", round(baseVals$host_cover), 
                                                  "%; adjusted = ",
-                                                 round(baseVals$host_cover + baseVals$host_cover * (input$coral_slider_ga/100), 2),
+                                                 round(baseVals$host_cover + baseVals$host_cover * (input$coral_slider_ga/100)),
                                                  "%") })
       
       # WS tab
       mitigate <- subset(mitigation_df, ID == input$management_map_shape_click$id)
       baseVals <- subset(baseline_vals, ID == input$management_map_shape_click$id)
       
-      reactive_w <- reactive({
+      reactive_w_ws <- reactive({
         subset(mitigate, Response == "Water quality" & Response_level == input$wq_slider_ws)
       })
       
-      reactive_f <- reactive({
+      reactive_f_ws <- reactive({
         subset(mitigate, Response == "Fish abundance" & Response_level == input$fish_slider_ws)
       })
       
-      reactive_c <- reactive({
+      reactive_c_ws <- reactive({
         subset(mitigate, Response == "Coral" & Response_level == input$coral_slider_ws)
       })
       
       output$barplot_ws <- renderPlotly({
-        mitigation_plot_fun(reactive_w(), reactive_f(), reactive_c(), round(baseVals$p*100))
+        mitigation_plot_fun(reactive_w_ws(), reactive_f_ws(), reactive_c_ws(), round(baseVals$p*100))
       })
       
       output$Mitigation_text_ws <- renderText({ paste0("Baseline disease risk in this location is ", 
@@ -490,16 +506,16 @@ server <- function(input, output, session) {
       
       output$fish_value_ws <- renderText({ paste0("fish: baseline = ", round(baseVals$fish),
                                                "; adjusted = ", 
-                                               round(baseVals$fish + baseVals$fish * (input$fish_slider_ws/100), 2)) })
+                                               round(baseVals$fish + baseVals$fish * (input$fish_slider_ws/100))) })
       
       output$corsize_value_ws <- renderText({ paste0("Median colony size: baseline = ", round(baseVals$coral_size), 
                                                   "cm; adjusted = ",
-                                                  round(baseVals$coral_size + baseVals$coral_size * (input$coral_slider_ws/100), 2),
+                                                  round(baseVals$coral_size + baseVals$coral_size * (input$coral_slider_ws/100)),
                                                   "cm") })
       
       output$corcov_value_ws <- renderText({ paste0("Host cover: baseline = ", round(baseVals$host_cover), 
                                                  "%; adjusted = ",
-                                                 round(baseVals$host_cover + baseVals$host_cover * (input$coral_slider_ws/100), 2),
+                                                 round(baseVals$host_cover + baseVals$host_cover * (input$coral_slider_ws/100)),
                                                  "%") })
     }
   })  
