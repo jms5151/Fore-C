@@ -25,15 +25,15 @@ library(raster)
 library(flexdashboard)
 library(tidyverse)
 library(shinyWidgets)
-library(rgdal) # needed if using clickable polygons
-library(sf) # needed if using clickable polygons
-# library(dygraphs)
+library(rgdal)
+library(sf) 
 library(xts)
 library(RColorBrewer)
+library(viridis)
 library(plotly)
 library(shinydashboard)
 library(shinycssloaders)
-library(leaflet.extras)
+# library(leaflet.extras) # needed if using drawable polygons
 
 # load data
 load("Compiled_data/historical_surveys.RData")
@@ -46,7 +46,11 @@ load("Compiled_data/mitigation.RData")
 load("Compiled_data/baseline.RData")
 load("Compiled_data/pixels_in_regional_polygons.RData")
 load("Compiled_data/simulated_data_for_regional_plotlygraphs.RData")
+load("Compiled_data/simulated_data_for_local_plotlygraphs.RData")
+load("Compiled_data/local_polygons.Rds")
+load("Compiled_data/regional_polygons.Rds")
 
+# colorRampPalette(c("orange", "red"))(5)
 # create maps
 # bins <- c(0, 0.05, 0.10, 0.15, 0.25, 0.50, 0.75, 1.0)
 bins <- c(0, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 1.0)
@@ -54,7 +58,8 @@ pal <- colorBin(brewer.pal(length(bins), "Oranges"), domain = reefs2$drisk, bins
 # bins <- c(1.0, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0) # just for this simulated data
 # pal <- colorBin(brewer.pal(length(bins), "RdYlBu"), domain = reefs2$drisk, bins = bins, na.color = "transparent")
 legendLabels <- c("0-5", "6-10", "11-15", "16-25", "26-50", "51-75", "76-100", "NA")
-poly_colors <- brewer.pal(length(region_poly), "Dark2")
+region_colors <- brewer.pal(length(region_poly), "Dark2")
+mpa_colors <- viridis_pal(option = "A")(length(mpa_poly$Type))
 
 leaf_reefs <- leaflet() %>%
   addTiles(group = "OpenStreetMap") %>%
@@ -70,41 +75,29 @@ leaf_reefs <- leaflet() %>%
               group = "Local forecasts",
               highlightOptions = highlightOptions(color = "black", weight = 3, bringToFront = TRUE)
   ) %>%
-  addPolygons(data = region_poly,
-              group = "Regional forecasts",
+  addPolygons(data = mpa_poly,
+              group = "Local management zones forecasts",
               layerId = ~ID,
-              color = poly_colors,
+              color = mpa_colors,
               highlightOptions = highlightOptions(color = "black", weight = 2, bringToFront = TRUE)
   ) %>%
-  addDrawToolbar(
-    targetGroup='draw',
-    polylineOptions = FALSE,
-    markerOptions = FALSE,
-    circleMarkerOptions = FALSE,
-    circleOptions = FALSE,
-    polygonOptions = drawPolygonOptions(),
-    rectangleOptions = drawRectangleOptions(),
-    editOptions = editToolbarOptions(selectedPathOptions = selectedPathOptions())
+  addPolygons(data = region_poly,
+              group = "Regional (management zone) forecasts",
+              layerId = ~ID,
+              color = region_colors,
+              highlightOptions = highlightOptions(color = "black", weight = 2, bringToFront = TRUE)
   ) %>%
   addLayersControl(
-    overlayGroups = c("Local forecasts", "Regional forecasts"),
+    overlayGroups = c("Local forecasts", "Local management zones forecasts", "Regional (management zone) forecasts"), 
     baseGroups = c("OpenStreetMap", "Satellite"),
     options = layersControlOptions(collapsed = FALSE), # icon versus buttons with text
     position = c("bottomright")) %>%
-  hideGroup(c("Regional forecasts")) %>% 
+  hideGroup(c("Local management zones forecasts", "Regional (management zone) forecasts")) %>% 
   leaflet::addLegend("bottomright", pal = pal, values = reefs2$drisk,
                      title = "Disease risk (%)",
                      labFormat = function(type, cuts, p) {  # Here's the trick
                        paste0(legendLabels) }) 
 
-# scenario map
-# leaf_scenarios <- leaflet() %>%
-#   addTiles(group = "OpenStreetMap") %>%
-#   addScaleBar("bottomleft") %>%
-#   addPolygons(data = region_poly,
-#               color = poly_colors,
-#               highlightOptions = highlightOptions(color = "black", weight = 2, bringToFront = TRUE)
-#   )
 
 leaf_scenarios <- leaflet() %>%
   addTiles(group = "OpenStreetMap") %>%
@@ -302,7 +295,7 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                                                                           tags$i(h6(textOutput("Mitigation_text_ga")))),
                                                                      sliderInput("wq_slider_ga", 
                                                                                  label = span(h5(strong("Water quality")), 
-                                                                                              tags$i(h6(textOutput("chlA_value_ga"))),
+                                                                                              tags$i(h6(htmlOutput("chlA_value_ga"))),
                                                                                               tags$i(h6(textOutput("kd_value_ga"))),
                                                                                               style="color:#00688B"),
                                                                                  min = -100, max = 100, step = 20, post  = " %", value = 0),
@@ -382,19 +375,34 @@ server <- function(input, output, session) {
     if(input$map1_shape_click$group == "Local forecasts"){
 
       z <- subset(p, ID == input$map1_shape_click$id)
-      # z2  <- subset(p, ID == input$map1_shape_click$id + 1)
+      z2  <- subset(p, ID == input$map1_shape_click$id + 1)
 
       output$plotlyGA <- renderPlotly({
         diseaseRisk_plotly(z, "Growth anomalies")
       })
       
-      # output$plotlyWS <- renderPlotly({
-      #   diseaseRisk_plotly(z2, "White syndromes")
-      # })
+      output$plotlyWS <- renderPlotly({
+        diseaseRisk_plotly(z2, "White syndromes")
+      })
 
     }
-    
-    else if(input$map1_shape_click$group == "Regional forecasts"){
+
+    else if(input$map1_shape_click$group == "Local management zones forecasts"){
+      
+      z5 <- subset(local_simulated_data, PolygonID == input$map1_shape_click$id)
+      z6  <- subset(local_simulated_data, PolygonID == input$map1_shape_click$id)
+      
+      output$plotlyGA <- renderPlotly({
+        diseaseRisk_plotly(z5, "Growth anomalies")
+      })
+      
+      output$plotlyWS <- renderPlotly({
+        diseaseRisk_plotly(z6, "White syndromes")
+      })
+      
+    }
+
+    else if(input$map1_shape_click$group == "Regional (management zone) forecasts"){
       
       z3 <- subset(regional_simulated_data, PolygonID == input$map1_shape_click$id)
       z4  <- subset(regional_simulated_data, PolygonID == input$map1_shape_click$id)
@@ -452,8 +460,9 @@ server <- function(input, output, session) {
                                                     round(baseVals$p*100), "%") })
       
       output$chlA_value_ga <- renderText({ paste0("chl-a: baseline = ", round(baseVals$chla, 2), 
-                                               "; adjusted = ", 
-                                               round(baseVals$chla + baseVals$chla * (input$wq_slider_ga/100), 2)) })
+                                               " mg/m<sup>3<sup>; adjusted = ", 
+                                               round(baseVals$chla + baseVals$chla * (input$wq_slider_ga/100), 2),
+                                               " mg/m<sup>3<sup>") })
       
       output$kd_value_ga <- renderText({ paste0("kd(490): baseline = ", round(baseVals$kd490, 2),
                                              "; adjusted = ", 
