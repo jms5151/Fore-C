@@ -34,6 +34,7 @@ library(plotly)
 library(shinydashboard)
 library(shinycssloaders)
 # library(leaflet.extras) # needed if using drawable polygons
+library(shinyBS) # for hover text
 
 # load data
 load("Compiled_data/historical_surveys.RData")
@@ -252,7 +253,11 @@ scenarios_placeholder_plot <- plot_ly(x = "Water quality", y = 0, type = "bar", 
     font = list(size = 14),
     showlegend = FALSE) 
 
-# run shiny app
+wq_hover_txt <- "Adjust me!"
+fish_hover_txt <- "Adjust me!"
+coral_hover_txt <- "Adjust me!"
+
+# ui --------------------------------------
 ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                  # Nowcasts and forecasts page
                  tabPanel("Coral disease predictions",
@@ -296,23 +301,35 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                                                                      sliderInput("wq_slider_ga", 
                                                                                  label = span(h5(strong("Water quality")), 
                                                                                               tags$i(h6(htmlOutput("chlA_value_ga"))),
-                                                                                              tags$i(h6(textOutput("kd_value_ga"))),
-                                                                                              style="color:#00688B"),
-                                                                                 min = -100, max = 100, step = 20, post  = " %", value = 0),
+                                                                                              tags$i(h6(htmlOutput("kd_value_ga"))),
+                                                                                              style="color:#00688B",
+                                                                                              div(style = 'width:250px;',
+                                                                                                  div(h6(style='float:left;', 'Worse')),
+                                                                                                  div(h6(style='float:right;', 'Better')))),
+                                                                                 min = -100, max = 100, step = 20, post  = " %", value = 0, width = "250px"),
+                                                                     bsTooltip("wq_slider_ga", wq_hover_txt, placement = "bottom", trigger = "hover", options = NULL),
                                                                      sliderInput("fish_slider_ga", 
-                                                                                 label = span(h5(strong("Fish abundance")), 
-                                                                                              tags$i(h6(textOutput("fish_value_ga"))),
-                                                                                              style="color:#8B0000"),
-                                                                                 min = -100, max = 100, step = 20, post  = " %", value = 0),
+                                                                                 label = span(h5(strong("Herbivorous fish")), 
+                                                                                              tags$i(h6(htmlOutput("fish_value_ga"))),
+                                                                                              style="color:#8B0000",
+                                                                                              div(style = 'width:250px;',
+                                                                                                  div(h6(style='float:left;', 'Less')),
+                                                                                                  div(h6(style='float:right;', 'More')))),
+                                                                                 min = -100, max = 100, step = 20, post  = " %", value = 0, width = "250px"),
+                                                                     bsTooltip("fish_slider_ga", fish_hover_txt, placement = "bottom", trigger = "hover", options = NULL),
                                                                      sliderInput("coral_slider_ga", 
                                                                                  label = span(h5(strong("Coral")), 
                                                                                               tags$i(h6(textOutput("corsize_value_ga"))),
                                                                                               tags$i(h6(textOutput("corcov_value_ga"))),
-                                                                                              style="color:#000000"),
-                                                                                 min = -100, max = 100, step = 20, post  = " %", value = 0), #HTML("Coral<br/>Colony size<br/>Host coral cover")
+                                                                                              style="color:#000000",
+                                                                                              div(style = 'width:250px;',
+                                                                                                  div(h6(style='float:left;', 'Less')),
+                                                                                                  div(h6(style='float:right;', 'More')))),
+                                                                                 min = -100, max = 100, step = 20, post  = " %", value = 0, width = "250px"), 
+                                                                     bsTooltip("coral_slider_ga", coral_hover_txt, placement = "bottom", trigger = "hover", options = NULL),
                                                                      style = "background: white"
-                                                 )
-                                                 ),
+                                                                     )
+                                                        ),
                                                  column(8, wellPanel(plotlyOutput("barplot_ga"),
                                                                      style = "background: white"))
                                                )
@@ -324,21 +341,33 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
 
                                                                    sliderInput("wq_slider_ws", 
                                                                                label = span(h5(strong("Water quality")), 
-                                                                                            tags$i(h6(textOutput("chlA_value_ws"))),
-                                                                                            tags$i(h6(textOutput("kd_value_ws"))),
-                                                                                            style="color:#00688B"),
-                                                                               min = -100, max = 100, step = 20, post  = " %", value = 0),
+                                                                                            tags$i(h6(htmlOutput("chlA_value_ws"))),
+                                                                                            tags$i(h6(htmlOutput("kd_value_ws"))),
+                                                                                            style="color:#00688B",
+                                                                                            div(style = 'width:250px;',
+                                                                                                div(h6(style='float:left;', 'Worse')),
+                                                                                                div(h6(style='float:right;', 'Better')))),
+                                                                               min = -100, max = 100, step = 20, post  = " %", value = 0, width = "250px"),
+                                                                   bsTooltip("wq_slider_ga", wq_hover_txt, placement = "bottom", trigger = "hover", options = NULL),
                                                                    sliderInput("fish_slider_ws", 
-                                                                               label = span(h5(strong("Fish abundance")), 
-                                                                                            tags$i(h6(textOutput("fish_value_ws"))),
-                                                                                            style="color:#8B0000"),
-                                                                               min = -100, max = 100, step = 20, post  = " %", value = 0),
+                                                                               label = span(h5(strong("Herbivorous fish")), 
+                                                                                            tags$i(h6(htmlOutput("fish_value_ws"))),
+                                                                                            style="color:#8B0000",
+                                                                                            div(style = 'width:250px;',
+                                                                                                div(h6(style='float:left;', 'Less')),
+                                                                                                div(h6(style='float:right;', 'More')))),
+                                                                               min = -100, max = 100, step = 20, post  = " %", value = 0, width = "250px"),
+                                                                   bsTooltip("fish_slider_ga", fish_hover_txt, placement = "bottom", trigger = "hover", options = NULL),
                                                                    sliderInput("coral_slider_ws", 
                                                                                label = span(h5(strong("Coral")), 
                                                                                             tags$i(h6(textOutput("corsize_value_ws"))),
                                                                                             tags$i(h6(textOutput("corcov_value_ws"))),
-                                                                                            style="color:#000000"),
-                                                                               min = -100, max = 100, step = 20, post  = " %", value = 0), #HTML("Coral<br/>Colony size<br/>Host coral cover")
+                                                                                            style="color:#000000",
+                                                                                            div(style = 'width:250px;',
+                                                                                                div(h6(style='float:left;', 'Less')),
+                                                                                                div(h6(style='float:right;', 'More')))),
+                                                                               min = -100, max = 100, step = 20, post  = " %", value = 0, width = "250px"), 
+                                                                   bsTooltip("coral_slider_ga", coral_hover_txt, placement = "bottom", trigger = "hover", options = NULL),
                                                                    style = "background: white")
                                                ),
                                                column(8, wellPanel(plotlyOutput("barplot_ws"),
@@ -358,6 +387,7 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                  tabPanel("About")
                  )
 
+# si -----------------------------
 server <- function(input, output, session) { 
     
   output$map1 <- renderLeaflet({
@@ -460,27 +490,28 @@ server <- function(input, output, session) {
                                                     round(baseVals$p*100), "%") })
       
       output$chlA_value_ga <- renderText({ paste0("chl-a: baseline = ", round(baseVals$chla, 2), 
-                                               " mg/m<sup>3<sup>; adjusted = ", 
+                                               " mg/m<sup>3</sup>; adjusted = ", 
                                                round(baseVals$chla + baseVals$chla * (input$wq_slider_ga/100), 2),
-                                               " mg/m<sup>3<sup>") })
+                                               " mg/m<sup>3</sup>") })
       
       output$kd_value_ga <- renderText({ paste0("kd(490): baseline = ", round(baseVals$kd490, 2),
-                                             "; adjusted = ", 
-                                             round(baseVals$kd490 + baseVals$kd490 * (input$wq_slider_ga/100), 2)) })
+                                             " m<sup>-1</sup>; adjusted = ", 
+                                             round(baseVals$kd490 + baseVals$kd490 * (input$wq_slider_ga/100), 2),
+                                             " m<sup>-1</sup>") })
       
-      output$fish_value_ga <- renderText({ paste0("fish: baseline = ", round(baseVals$fish),
-                                               "; adjusted = ", 
+      output$fish_value_ga <- renderText({ paste0("baseline = ", round(baseVals$fish),
+                                               " m<sup>2</sup>; adjusted = ", 
                                                round(baseVals$fish + baseVals$fish * (input$fish_slider_ga/100))) })
       
       output$corsize_value_ga <- renderText({ paste0("Median colony size: baseline = ", round(baseVals$coral_size), 
-                                                  "cm; adjusted = ",
+                                                  " cm; adjusted = ",
                                                   round(baseVals$coral_size + baseVals$coral_size * (input$coral_slider_ga/100)),
-                                                  "cm") })
+                                                  " cm") })
       
       output$corcov_value_ga <- renderText({ paste0("Host cover: baseline = ", round(baseVals$host_cover), 
-                                                 "%; adjusted = ",
+                                                 " %; adjusted = ",
                                                  round(baseVals$host_cover + baseVals$host_cover * (input$coral_slider_ga/100)),
-                                                 "%") })
+                                                 " %") })
       
       # WS tab
       mitigate <- subset(mitigation_df, ID == input$management_map_shape_click$id)
@@ -506,26 +537,28 @@ server <- function(input, output, session) {
                                                     round(baseVals$p*100), "%") })
       
       output$chlA_value_ws <- renderText({ paste0("chl-a: baseline = ", round(baseVals$chla, 2), 
-                                               "; adjusted = ", 
-                                               round(baseVals$chla + baseVals$chla * (input$wq_slider_ws/100), 2)) })
+                                               " mg/m<sup>3</sup>; adjusted = ", 
+                                               round(baseVals$chla + baseVals$chla * (input$wq_slider_ws/100), 2),
+                                               " mg/m<sup>3</sup>") })
       
       output$kd_value_ws <- renderText({ paste0("kd(490): baseline = ", round(baseVals$kd490, 2),
-                                             "; adjusted = ", 
-                                             round(baseVals$kd490 + baseVals$kd490 * (input$wq_slider_ws/100), 2)) })
+                                             " m<sup>-1</sup>; adjusted = ", 
+                                             round(baseVals$kd490 + baseVals$kd490 * (input$wq_slider_ws/100), 2),
+                                             " m<sup>-1</sup>") })
       
-      output$fish_value_ws <- renderText({ paste0("fish: baseline = ", round(baseVals$fish),
-                                               "; adjusted = ", 
+      output$fish_value_ws <- renderText({ paste0("baseline = ", round(baseVals$fish),
+                                               " m<sup>2</sup>; adjusted = ", 
                                                round(baseVals$fish + baseVals$fish * (input$fish_slider_ws/100))) })
       
       output$corsize_value_ws <- renderText({ paste0("Median colony size: baseline = ", round(baseVals$coral_size), 
-                                                  "cm; adjusted = ",
+                                                  " cm; adjusted = ",
                                                   round(baseVals$coral_size + baseVals$coral_size * (input$coral_slider_ws/100)),
-                                                  "cm") })
+                                                  " cm") })
       
       output$corcov_value_ws <- renderText({ paste0("Host cover: baseline = ", round(baseVals$host_cover), 
-                                                 "%; adjusted = ",
+                                                 " %; adjusted = ",
                                                  round(baseVals$host_cover + baseVals$host_cover * (input$coral_slider_ws/100)),
-                                                 "%") })
+                                                 " %") })
     }
   })  
     # map historical data
@@ -534,5 +567,7 @@ server <- function(input, output, session) {
     })
   }
 
+
+# run --------------------
 shinyApp(ui, server)
 
