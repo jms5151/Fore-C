@@ -42,7 +42,6 @@ source("codes/addScaleBar.R")
 load("Compiled_data/grid.RData")
 load("Compiled_data/spatial_grid.Rds")
 load("Compiled_data/simulated_data_for_plotlygraphs.RData")
-load("Compiled_data/regional_polygons.Rds")
 load("Compiled_data/mitigation.RData")
 load("Compiled_data/baseline.RData")
 load("Compiled_data/pixels_in_regional_polygons.RData")
@@ -51,13 +50,12 @@ load("Compiled_data/simulated_data_for_local_plotlygraphs.RData")
 load("Compiled_data/local_polygons.Rds")
 load("Compiled_data/regional_polygons.Rds")
 
-# colorRampPalette(c("orange", "red"))(5)
 # create maps
 # bins <- c(0, 0.05, 0.10, 0.15, 0.25, 0.50, 0.75, 1.0)
 bins <- c(0, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 1.0)
-pal <- colorBin(brewer.pal(length(bins), "Oranges"), domain = reefs2$drisk, bins = bins, na.color = "transparent")
-# bins <- c(1.0, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0) # just for this simulated data
-# pal <- colorBin(brewer.pal(length(bins), "RdYlBu"), domain = reefs2$drisk, bins = bins, na.color = "transparent")
+cols <- c("white", "#FFFABF", "#FFDBA4", "#FF9E6E", "#FF603B", "red")
+pal <- colorBin(cols, domain = reefs2$drisk, bins = bins, na.color = "transparent")
+
 legendLabels <- c("0-5", "6-10", "11-15", "16-25", "26-50", "51-75", "76-100", "NA")
 region_colors <- brewer.pal(length(region_poly), "Dark2")
 mpa_colors <- viridis_pal(option = "A")(length(mpa_poly$Type))
@@ -89,11 +87,11 @@ leaf_reefs <- leaflet() %>%
               highlightOptions = highlightOptions(color = "black", weight = 2, bringToFront = TRUE)
   ) %>%
   addLayersControl(
-    overlayGroups = c("Local forecasts", "Local management zones forecasts", "Regional (management zone) forecasts"), 
+    overlayGroups = c("Local forecasts", "Local management zones forecasts", "Regional (management zone) forecasts"),
     baseGroups = c("OpenStreetMap", "Satellite"),
     options = layersControlOptions(collapsed = FALSE), # icon versus buttons with text
     position = c("bottomright")) %>%
-  hideGroup(c("Local management zones forecasts", "Regional (management zone) forecasts")) %>% 
+  hideGroup(c("Local management zones forecasts", "Regional (management zone) forecasts")) %>%
   leaflet::addLegend("bottomright", pal = pal, values = reefs2$drisk,
                      title = "Disease risk (%)",
                      labFormat = function(type, cuts, p) {  # Here's the trick
@@ -257,6 +255,15 @@ wq_hover_txt <- "Adjust me!"
 fish_hover_txt <- "Adjust me!"
 coral_hover_txt <- "Adjust me!"
 
+historical_data_info1 <- 'This map shows the locations, data collectors, and time range for the survey
+data that we used to build the coral disease models.'
+
+historical_data_info2 <- 'You can zoom in and out to explore different regions 
+and click on survey points for pop-up information.' 
+
+historical_data_info3 <- 'There is less uncertainty in disease forecasts for 
+locations with more surveys.'
+
 # ui --------------------------------------
 ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                  # Nowcasts and forecasts page
@@ -377,16 +384,29 @@ ui <- navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,"", id="nav",
                           )
                  ),
                  # Historical data page
-                 tabPanel("Historical data", 
+                 tabPanel("Historical data",
                           div(class="outer",
                               tags$head(includeCSS("styles.css")),
-                              leafletOutput("historical_data_map", width="100%", height="100%"))
+                              leafletOutput("historical_data_map", width="100%", height="100%")),
+                          absolutePanel(id = "controls", class = "panel panel-default",
+                                        top = 80, left = 60, fixed = TRUE,
+                                        draggable = FALSE, height = "auto",
+                                        class = "dropdown",
+                                        dropMenu(
+                                          dropdownButton(icon = icon('info'), size = "xs"),
+                                          h3(strong('Information')),
+                                          h5(historical_data_info1),
+                                          h5(historical_data_info2),
+                                          h5(historical_data_info3)
+                                          )
+                                        )
                           ),
                  
                  # About the project page
                  tabPanel("About")
                  )
 
+shinyApp(ui, server)
 # si -----------------------------
 server <- function(input, output, session) { 
     
