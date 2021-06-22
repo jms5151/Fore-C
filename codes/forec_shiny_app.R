@@ -24,36 +24,43 @@ if (!require("xts")) install.packages("xts"); library(xts)
 if (!require("shinydashboard")) install.packages("shinydashboard"); library(plotly)
 if (!require("shinycssloaders")) install.packages("shinycssloaders"); library(shinycssloaders)
 if (!require("shinyBS")) install.packages("shinyBS"); library(shinyBS) # for hover text
-
-# library(ggplot2)
-# library(raster)
-# library(rgdal)
-# library(sf) 
+if (!require("leaflet")) install.packages("leaflet"); library(leaflet)
+if (!require("RColorBrewer")) install.packages("RColorBrewer"); library(RColorBrewer)
+if (!require("viridis")) install.packages("viridis"); library(viridis)
+if (!require("plotly")) install.packages("plotly"); library(plotly)
 
 # load data -----------------------------------------------------------------------
-load("Compiled_data/grid.RData")
-load("Compiled_data/simulated_data_for_plotlygraphs.RData")
-load("Compiled_data/mitigation.RData")
-load("Compiled_data/baseline.RData")
-load("Compiled_data/pixels_in_regional_polygons.RData")
-load("Compiled_data/simulated_data_for_regional_plotlygraphs.RData")
-load("Compiled_data/simulated_data_for_local_plotlygraphs.RData")
+# load("./Compiled_data/mitigation.RData")
+# load("./Compiled_data/baseline.RData")
+# load("./Compiled_data/simulated_data_for_plotlygraphs.RData")
+# load("./Compiled_data/simulated_data_for_regional_plotlygraphs.RData")
+# load("./Compiled_data/simulated_data_for_local_plotlygraphs.RData")
+
+load("./forec_shiny_app_data/Forecasts/ga_forecast.RData")
+load("./forec_shiny_app_data/Forecasts/ws_forecast.RData")
+load("./forec_shiny_app_data/Forecasts/ga_forecast_aggregated_to_gbrmpa_park_zones.RData")
+load("./forec_shiny_app_data/Forecasts/ws_forecast_aggregated_to_gbrmpa_park_zones.RData")
+load("./forec_shiny_app_data/Forecasts/ga_forecast_aggregated_to_management_zones.RData")
+load("./forec_shiny_app_data/Forecasts/ws_forecast_aggregated_to_management_zones.RData")
+load("./forec_shiny_app_data/Scenarios/scenario_baseline_values.RData")
+load("./forec_shiny_app_data/Scenarios/ga_scenarios.RData")
+load("./forec_shiny_app_data/Scenarios/ws_scenarios.RData")
 
 # load functions, maps, plots, user interface and server for shiny app ------------
 # load maps & mapping functions
-source("codes/forec_shiny_app_maps.R")
+source("./codes/forec_shiny_app_maps.R")
 
 # load plots and plotting functions
-source("codes/forec_shiny_app_plots.R")
+source("./codes/forec_shiny_app_plots.R")
 
 # load information text blocks and settings, must be loaded before sourcing UI and server
-source("codes/forec_shiny_app_info_text_and_settings.R")
+source("./codes/forec_shiny_app_info_text_and_settings.R")
 
 # load user interface
-source("codes/forec_shiny_app_user_interface.R")
+source("./codes/forec_shiny_app_user_interface.R")
 
 # load server
-source("codes/forec_shiny_app_server.R")
+source("./codes/forec_shiny_app_server.R")
 
 # run shiny app -------------------------------------------------------------------
 shinyApp(ui, server)
