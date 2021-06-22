@@ -11,30 +11,30 @@ server <- function(input, output, session) {
   output$plotlyGA <- renderPlotly({
     diseaseRisk_placeholder_plot(
       "Growth anomalies", 
-      p$Date
+      ga_forecast$Date
       )
     })
   
   output$plotlyWS <- renderPlotly({
     diseaseRisk_placeholder_plot(
       "White syndromes", 
-      p$Date
+      ws_forecast$Date
       )
     })
   
   observeEvent(
     input$map1_shape_click, 
     {
-      if(input$map1_shape_click$group == "Local forecasts")
+      if(input$map1_shape_click$group == "5km forecasts")
         {
         
         z <- subset(
-          p, 
+          ga_forecast, 
           ID == input$map1_shape_click$id
           )
         
         z2 <- subset(
-          p, 
+          ws_forecast, 
           ID == input$map1_shape_click$id + 1
           )
         
@@ -53,16 +53,16 @@ server <- function(input, output, session) {
           })
         }
       
-      else if(input$map1_shape_click$group == "Local management zones forecasts")
+      else if(input$map1_shape_click$group == "Management area forecasts")
         {
         
         z5 <- subset(
-          local_simulated_data, 
+          ga_forecast_aggregated_to_gbrmpa_park_zones, 
           PolygonID == input$map1_shape_click$id
           )
         
         z6  <- subset(
-          local_simulated_data, 
+          ws_forecast_aggregated_to_gbrmpa_park_zones, 
           PolygonID == input$map1_shape_click$id
           )
         
@@ -81,16 +81,16 @@ server <- function(input, output, session) {
           })
         }
       
-      else if(input$map1_shape_click$group == "Regional (management zone) forecasts")
+      else if(input$map1_shape_click$group == "GBRMPA park zoning forecasts")
         {
         
         z3 <- subset(
-          regional_simulated_data, 
+          ga_forecast_aggregated_to_management_zones, 
           PolygonID == input$map1_shape_click$id
           )
         
         z4 <- subset(
-          regional_simulated_data, 
+          ws_forecast_aggregated_to_management_zones, 
           PolygonID == input$map1_shape_click$id
           )
         
@@ -112,7 +112,6 @@ server <- function(input, output, session) {
   
   # management scenarios outputs
   output$management_map <- renderLeaflet({
-    # leaf_reefs
     leaf_scenarios
   })
   
@@ -120,7 +119,7 @@ server <- function(input, output, session) {
     scenarios_placeholder_plot
     })
   
-  #create empty vector to hold all click ids
+  #create empty vector to hold all click ids, not sure if this is needed anymore
   selected2 <- reactiveValues(
     groups = vector()
     )
@@ -128,17 +127,17 @@ server <- function(input, output, session) {
   observeEvent(
     input$management_map_shape_click,
     {
-      if(input$management_map_shape_click$group == "Local forecasts")
+      if(input$management_map_shape_click$group == "5km forecasts")
         {
         
         # GA tab
         mitigate <- subset(
-          mitigation_df, 
+          ga_scenarios, 
           ID == input$management_map_shape_click$id
           )
         
         baseVals <- subset(
-          baseline_vals, 
+          scenario_baseline_vals, 
           ID == input$management_map_shape_click$id
           )
         
@@ -180,8 +179,8 @@ server <- function(input, output, session) {
             "Baseline disease risk in this location is ",
             round(baseVals$p*100),
             "%"
-            )
-          })
+          )
+        })
         
         output$chlA_value_ga <- renderText({
           paste0(
@@ -190,8 +189,8 @@ server <- function(input, output, session) {
             " mg/m<sup>3</sup>; adjusted = ",
             round(baseVals$chla + baseVals$chla * (input$wq_slider_ga/100), 2),
             " mg/m<sup>3</sup>"
-            )
-          })
+          )
+        })
         
         output$kd_value_ga <- renderText({
           # testFun("kd(490)", baseVals$kd490, "m<sup>-1</sup>", input$wq_slider_ga)
@@ -202,7 +201,7 @@ server <- function(input, output, session) {
             round(baseVals$kd490 + baseVals$kd490 * (input$wq_slider_ga/100), 2),
             " m<sup>-1</sup>"
           )
-          })
+        })
         
         output$fish_value_ga <- renderText({
           paste0(
@@ -235,12 +234,12 @@ server <- function(input, output, session) {
         
         # WS tab
         mitigate <- subset(
-          mitigation_df, 
+          ws_scenarios, 
           ID == input$management_map_shape_click$id
           )
         
         baseVals <- subset(
-          baseline_vals, 
+          scenario_baseline_vals, 
           ID == input$management_map_shape_click$id
           )
         
