@@ -30,21 +30,25 @@ if (!require("viridis")) install.packages("viridis"); library(viridis)
 if (!require("plotly")) install.packages("plotly"); library(plotly)
 
 # load data -----------------------------------------------------------------------
-# load("./Compiled_data/mitigation.RData")
-# load("./Compiled_data/baseline.RData")
-# load("./Compiled_data/simulated_data_for_plotlygraphs.RData")
-# load("./Compiled_data/simulated_data_for_regional_plotlygraphs.RData")
-# load("./Compiled_data/simulated_data_for_local_plotlygraphs.RData")
-
 load("./forec_shiny_app_data/Forecasts/ga_forecast.RData")
 load("./forec_shiny_app_data/Forecasts/ws_forecast.RData")
-load("./forec_shiny_app_data/Forecasts/ga_forecast_aggregated_to_gbrmpa_park_zones.RData")
-load("./forec_shiny_app_data/Forecasts/ws_forecast_aggregated_to_gbrmpa_park_zones.RData")
 load("./forec_shiny_app_data/Forecasts/ga_forecast_aggregated_to_management_zones.RData")
 load("./forec_shiny_app_data/Forecasts/ws_forecast_aggregated_to_management_zones.RData")
-load("./forec_shiny_app_data/Scenarios/scenario_baseline_values.RData")
+load("./forec_shiny_app_data/Forecasts/ga_forecast_aggregated_to_gbrmpa_park_zones.RData")
+load("./forec_shiny_app_data/Forecasts/ws_forecast_aggregated_to_gbrmpa_park_zones.RData")
+
+load("./forec_shiny_app_data/Scenarios/ga_scenarios_baseline_vals.RData")
+load("./forec_shiny_app_data/Scenarios/ws_scenarios_baseline_vals.RData")
+load("./forec_shiny_app_data/Scenarios/ga_scenarios_baseline_vals_aggregated_to_management_zones.RData")
+load("./forec_shiny_app_data/Scenarios/ws_scenarios_baseline_vals_aggregated_to_management_zones.RData")
+load("./forec_shiny_app_data/Scenarios/ga_scenarios_baseline_vals_aggregated_to_gbrmpa_park_zones.RData")
+load("./forec_shiny_app_data/Scenarios/ws_scenarios_baseline_vals_aggregated_to_gbrmpa_park_zones.RData")
 load("./forec_shiny_app_data/Scenarios/ga_scenarios.RData")
 load("./forec_shiny_app_data/Scenarios/ws_scenarios.RData")
+load("./forec_shiny_app_data/Scenarios/ga_scenario_aggregated_to_management_zones.RData")
+load("./forec_shiny_app_data/Scenarios/ws_scenario_aggregated_to_management_zones.RData")
+load("./forec_shiny_app_data/Scenarios/ga_scenario_aggregated_to_gbrmpa_park_zones.RData")
+load("./forec_shiny_app_data/Scenarios/ws_scenario_aggregated_to_gbrmpa_park_zones.RData")
 
 # load functions, maps, plots, user interface and server for shiny app ------------
 # load maps & mapping functions

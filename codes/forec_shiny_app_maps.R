@@ -42,7 +42,7 @@ leaf_reefs <- leaflet() %>%
   addTiles(group = "OpenStreetMap") %>%
   addTiles(urlTemplate="http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", group = "Satellite") %>%
   addScaleBar("topright") %>% # bottomleft
-  addPolygons(data = polygons_5km, 
+  addPolygons(data = polygons_5km,
               layerId = ~ID,
               fillColor = ~pal(polygons_5km$drisk),
               weight = 2,
@@ -79,23 +79,24 @@ leaf_reefs <- leaflet() %>%
                        paste0(legendLabels) }) 
 
 # create map for scenarios page ------------------------------------------------------------
-leaf_scenarios <- leaflet() %>%
-  addTiles(group = "OpenStreetMap") %>%
-  addScaleBar("bottomleft") %>%
-  addPolygons(data = polygons_5km, 
-              layerId = ~ID,
-              fillColor = ~pal(polygons_5km$drisk),
-              weight = 2,
-              opacity = 1,
-              group = "5km forecasts",
-              color = ~pal(polygons_5km$drisk),
-              fillOpacity = 0.7,
-              highlightOptions = highlightOptions(color = "black", weight = 3, bringToFront = TRUE)
-  ) %>%
-  leaflet::addLegend("bottomright", pal = pal, values = polygons_5km$drisk,
-                     title = "Disease risk (%)",
-                     labFormat = function(type, cuts, p) {  # Here's the trick
-                       paste0(legendLabels) }) 
+leaf_scenarios <- leaf_reefs 
+  # leaflet() %>%
+  # addTiles(group = "OpenStreetMap") %>%
+  # addScaleBar("bottomleft") %>%
+  # addPolygons(data = polygons_5km, 
+  #             layerId = ~ID,
+  #             fillColor = ~pal(polygons_5km$drisk),
+  #             weight = 2,
+  #             opacity = 1,
+  #             group = "5km forecasts",
+  #             color = ~pal(polygons_5km$drisk),
+  #             fillOpacity = 0.7,
+  #             highlightOptions = highlightOptions(color = "black", weight = 3, bringToFront = TRUE)
+  # ) %>%
+  # leaflet::addLegend("bottomright", pal = pal, values = polygons_5km$drisk,
+  #                    title = "Disease risk (%)",
+  #                    labFormat = function(type, cuts, p) {  # Here's the trick
+  #                      paste0(legendLabels) }) 
 
 # create map of historical disease surveys -------------------------------------------------
 historicalMap = leaflet() %>%

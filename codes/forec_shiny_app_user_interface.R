@@ -64,7 +64,7 @@ ui <- navbarPage(
     ),
   # Management scenarios page
   tabPanel(
-    "Mitigation potential", #HTML("Long-term mitigation<br/>potential"),
+    "Investigating scenarios", #HTML("Long-term mitigation<br/>potential"),
     leafletOutput(
       "management_map", 
       height = "300px"
@@ -107,16 +107,9 @@ ui <- navbarPage(
               span(
                 h5(
                   strong(
-                    "Mitigation targets:"
+                    "Targets:"
                     )
                   ),
-                tags$i(
-                  h6(
-                    textOutput(
-                      "Mitigation_text_ga"
-                      )
-                    )
-                  )
                 ),
               sliderInput(
                 "wq_slider_ga",
@@ -279,7 +272,10 @@ ui <- navbarPage(
               plotlyOutput(
                 "barplot_ga"
               ),
-              style = "background: white"
+              style = "background: white",
+              # tableOutput(
+              #   "table_ga"
+              # )
             )
           )
         )
@@ -292,16 +288,9 @@ ui <- navbarPage(
             span(
               h5(
                 strong(
-                  "Mitigation targets:"
+                  "Targets:"
                 )
               ),
-              tags$i(
-                h6(
-                  textOutput(
-                    "Mitigation_text_ws"
-                  )
-                )
-              )
             ),
             sliderInput(
               "wq_slider_ws",
