@@ -2,13 +2,24 @@
 # https://avehtari.github.io/modelselection/roaches.html
 # https://bookdown.org/ajkurz/DBDA_recoded/model-comparison-and-hierarchical-modeling.htmlhttps://bookdown.org/ajkurz/DBDA_recoded/model-comparison-and-hierarchical-modeling.html
 
-# Model comparisons  -----------------------------------------------------------------------------
 
+# model diagnostics
+# https://easystats.github.io/performance/index.html
+# https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html
+
+# loo_compare(fit_b1, fit_b4, criterion = "waic") # best fitting model appears on top (value == 0)
+
+# Model comparisons  -----------------------------------------------------------------------------
+devtools::session_info()
 # load libraries
 library(brms)
+library(bayesplot)
+# rstanarm zero inflated models
+# https://github.com/stan-dev/rstanarm/blob/master/vignettes/count.Rmd
+# library(rstanarm)
 # library(bayesplot)
 
-options(mc.cores=6)
+# options(mc.cores=6)
 
 # load data
 load("Compiled_data/GA_with_predictors.RData")
@@ -16,19 +27,363 @@ load("Compiled_data/WS_with_predictors.RData")
 
 # GA Pacific -----------------------------------------------
 ga_pac <- subset(GA_data, Region != "GBR" & Family == "Poritidae")
-ga_pac <- ga_pac[, c("Y", "C", "Region", "Month", "Median_colony_size", "Poritidae_mean_cover", "H_abund", "wave_mean", "wave_sd", "SST_90dMean", "BlackMarble_2016_3km_geo.1")]
+ga_pac <- ga_pac[, c("Y", 
+                     "C", 
+                     "Median_colony_size", 
+                     "BlackMarble_2016_3km_geo.1",
+                     "SST_90dMean",
+                     "Winter_condition",
+                     "H_abund",
+                     "Poritidae_mean_cover",
+                     "Long_Term_Chl_Variability"
+                     )] 
 ga_pac <- ga_pac[complete.cases(ga_pac), ]
 
+# set priors 
+# get_prior(bf(Y|trials(C) ~ scale(Median_colony_size) +
+#                scale(BlackMarble_2016_3km_geo.1) +
+#                scale(SST_90dMean) +
+#                scale(Winter_condition) +
+#                scale(H_abund) +
+#                scale(Poritidae_mean_cover) +
+#                scale(Long_Term_Chl_Variability)
+#              ),
+#           data = ga_pac,
+#           family = zero_inflated_binomial())
+# 
+# ga_pac_priors <- c(prior(dnorm( 0 , 1.5 ), class = "b", coef = "scaleMedian_colony_size"),
+#                    prior(dnorm( 0 , 1.5 ), class = "b", coef = "scaleBlackMarble_2016_3km_geo.1"))
+
+
+# run model
+GA_Pacific_model <- brm(bf(Y|trials(C) ~ scale(Median_colony_size) +
+                             scale(BlackMarble_2016_3km_geo.1) +
+                             scale(SST_90dMean) +
+                             scale(Winter_condition) + 
+                             scale(H_abund) +
+                             scale(Poritidae_mean_cover) +
+                             scale(Long_Term_Chl_Variability)
+                           ),
+                             data = ga_pac,
+                             family = zero_inflated_binomial(),
+                             chains = 3 #, prior = ga_pac_priors
+                        )
+
+conditional_effects(GA_Pacific_model)
+summary(GA_Pacific_model)
+
+saveRDS(GA_Pacific_model, file = "Compiled_data/model_objects/GA_Pacific_model_binomial.Rds")
+
+# GA_Pacific_model <- readRDS("Compiled_data/model_objects/GA_Pacific_model.Rds")
+
+# zero-inflated poisson model (doesn't make much of a difference) 
+GA_Pacific_model2 <- brm(Y ~ scale(Median_colony_size) +
+                             scale(BlackMarble_2016_3km_geo.1) +
+                             scale(SST_90dMean) +
+                             scale(Winter_condition) +
+                             scale(H_abund) +
+                             scale(Poritidae_mean_cover) +
+                             scale(Long_Term_Chl_Variability),
+                         data = ga_pac,
+                         family = zero_inflated_poisson(),
+                         chains = 3
+                         )
+
+model_weights(GA_Pacific_model,
+              GA_Pacific_model2,
+              weights = "loo")
+
+saveRDS(GA_Pacific_model2, file = "Compiled_data/model_objects/GA_Pacific_model.Rds")
+# stan code
+# make_stancode(formula = (bf(Y|trials(C) ~ scale(Median_colony_size) +
+#                     scale(BlackMarble_2016_3km_geo.1) +
+#                     scale(SST_90dMean) +
+#                     scale(Winter_condition) +
+#                     scale(H_abund) +
+#                     scale(Poritidae_mean_cover) +
+#                     scale(Long_Term_Chl_Variability)
+#                     )),
+#               data = ga_pac,
+#               family = zero_inflated_binomial())
+
+# predict
+ga_pac_predictions <- predict(GA_Pacific_model, 
+                              newdata = ga_pac, 
+                              summary = FALSE)
+
+# calculate prevalence and re-organize into data frame 
+# with each column representing ID 1 - N, and each row
+# a sample from the posterior distribution
+prev_predictions <- t(t(ga_pac_predictions)/ga_pac$C)
+prev_predictions <- as.data.frame(prev_predictions)
+prev_predictions <- sapply( 1:nrow(ga_pac) , function(k) mean(k) )
+plot(ga_pac$Y, prev_predictions)
+
+# checks
+plot(GA_Pacific_model)
+
+ga_pac_yrep <- posterior_predict(GA_Pacific_model)
+
+ga_pac_prop_zero <- ppc_stat(y = ga_pac$Y, 
+                             ga_pac_yrep, 
+                             stat = function(y) mean(y==0)
+                             )
+
+
+ga_pac_max_znb <- ppc_stat(y = ga_pac$Y, 
+                           ga_pac_yrep, 
+                           stat = "max")
+
+ga_pac_max_znb
+
+ga_pac_loop <- loo(GA_Pacific_model)
+plot(ga_pac_loop)
+
+pp_check(GA_Pacific_model)
+
+pp_check(GA_Pacific_model, 
+         type = "bars", 
+         nsamples = 100)
+
+ga_pac_prop_zero <- function(x) {sum(x == 0)/length(x)}
+
+ppc_stat(y = ga_pac$Y, 
+         yrep = posterior_predict(GA_Pacific_model, draws = 1000), 
+         stat = "prop_zero")
+
+# library(rethinking)
+# ga_dat <- list(
+#   Y = ga_pac$Y,
+#   C = ga_pac$C,
+#   Median_colony_size = scale(ga_pac$Median_colony_size),
+#   development = scale(ga_pac$BlackMarble_2016_3km_geo.1)
+# )
+# 
+# gapor_ulam <- ulam(
+#   alist(
+#     Y ~ dbinom( C , p ) ,
+#     logit(p) <- beta_size * Median_colony_size + beta_dev * development,
+#     beta_size ~ dnorm( 0 , 1.5 ),
+#     beta_dev ~ dnorm( 0 , 1.5 )
+#   ) , data=ga_dat , chains=4 , log_lik=TRUE )
+# 
+# precis( gapor_ulam , depth=2 )
+# stancode(gapor_ulam)
+# prior <- extract.prior( gapor_ulam , n=1e4 )
+# dens(inv_logit(prior$beta_size))
+# dens(inv_logit(prior$beta_dev))
+# 
+# post <- extract.samples(gapor_ulam)
+# plot(precis(post))
+# postcheck( gapor_ulam ) # blue = observations, black = predictions (median, 89%iles)
+# pairs(gapor_ulam) # posterior correlations among parameters
+
+# WS Pacific Acropora -------------------------------------
+ws_pac_acr <- subset(WS_data, Region != "GBR" & !is.na(Y) & Family == "Acroporidae")
+ws_pac_acr <- ws_pac_acr[, c("Y", 
+                             "C", 
+                             "wave_sd",
+                             # "Region",
+                             "Three_Week_Kd_Median",                             
+                             "Three_Week_Median_Residual",
+                             "Acute_Kd_12week",
+                             "Long_Term_Chl_Median",
+                             "H_abund",
+                             "Hot_snaps"
+                             )]
+ws_pac_acr <- ws_pac_acr[complete.cases(ws_pac_acr), ]
+
+WS_Pacific_Acropora_model <- brm(bf(Y|trials(C) ~ scale(wave_sd) +
+                                      # Region +
+                                      scale(Three_Week_Kd_Median) +
+                                      scale(Three_Week_Median_Residual) +
+                                      scale(Acute_Kd_12week) +
+                                      scale(Long_Term_Chl_Median) +
+                                      scale(H_abund) +
+                                      scale(Hot_snaps)
+                                    ),
+                                 data = ws_pac_acr,
+                                 family = zero_inflated_binomial(),
+                                 chains = 3)
+
+conditional_effects(WS_Pacific_Acropora_model)
+summary(WS_Pacific_Acropora_model)
+
+saveRDS(WS_Pacific_Acropora_model, file = "Compiled_data/model_objects/WS_Pacific_Acropora_model_binomial.Rds")
+
+# WS_Pacific_Acropora_model <- readRDS("Compiled_data/model_objects/WS_Pacific_Acropora_model.Rds")
+
+# zero-inflated poisson model
+WS_Pacific_Acropora_model2 <- brm(Y ~ scale(wave_sd) +
+                                      scale(Three_Week_Kd_Median) +
+                                      scale(Three_Week_Median_Residual) +
+                                      scale(Acute_Kd_12week) +
+                                      scale(Long_Term_Chl_Median) +
+                                      scale(H_abund) +
+                                      scale(Hot_snaps),
+                                  data = ws_pac_acr,
+                                  family = zero_inflated_poisson(),
+                                  chains = 3)
+conditional_effects(WS_Pacific_Acropora_model2)
+summary(WS_Pacific_Acropora_model2)
+model_weights(WS_Pacific_Acropora_model,
+        WS_Pacific_Acropora_model2,
+        weights = "loo")
+
+saveRDS(WS_Pacific_Acropora_model2, file = "Compiled_data/model_objects/WS_Pacific_Acropora_model.Rds")
+
+# predict
+ws_pac_predictions <- predict(WS_Pacific_Acropora_model, 
+                              newdata = ws_pac_acr, 
+                              summary = FALSE)
+
+# calculate prevalence and re-organize into data frame 
+# with each column representing ID 1 - N, and each row
+# a sample from the posterior distribution
+prev_predictions <- t(t(ws_pac_predictions)/ws_pac_acr$C)
+prev_predictions <- as.data.frame(prev_predictions)
+prev_predictions <- sapply( 1:nrow(ws_pac_acr) , function(k) mean(k) )
+plot(ws_pac_acr$Y, prev_predictions)
+
+# alternative approach
+plot(WS_Pacific_Acropora_model)
+
+ws_pac_acr_yrep <- posterior_predict(WS_Pacific_Acropora_model)
+
+ws_pac_acr_prop_zero <- ppc_stat(y = ws_pac_acr$Y,
+                                 ws_pac_acr_yrep,
+                                 stat = function(y) mean(y==0)
+                                 )
+
+ws_pac_acr_max <- ppc_stat(y = ws_pac_acr$Y, 
+                           ws_pac_acr_yrep, 
+                           stat = "max")
+ws_pac_acr_max
+
+ws_pac_acr_loop <- loo(WS_Pacific_Acropora_model)
+plot(ws_pac_acr_loop)
+
+pp_check(WS_Pacific_Acropora_model)
+
+pp_check(WS_Pacific_Acropora_model, 
+         type = "bars", 
+         nsamples = 100)
+
+ws_pac_acr_prop_zero <- function(x) {sum(x == 0)/length(x)}
+
+ppc_stat(y = ws_pac_acr$Y, 
+         yrep = posterior_predict(WS_Pacific_Acropora_model, draws = 1000), 
+         stat = "prop_zero")
+# https://www.monicaalexander.com/posts/2020-28-02-bayes_viz/
+
+# GA GBR ---------------------------------------------------
+ga_gbr <- subset(GA_data, Region == "GBR")
+ga_gbr <- ga_gbr[, c("Y",
+                     "Winter_condition",
+                     "Hot_snaps",
+                     "Acute_Kd_12week",
+                     "Island",
+                     "Long_Term_Kd_Variability",
+                     "wave_sd",
+                     "Acute_Chla_4week",
+                     "SST_90dMean")]
+
+ga_gbr <- ga_gbr[complete.cases(ga_gbr), ]
+ga_gbr$Y <- as.integer(ga_gbr$Y)
+
+GA_GBR_model <- brm(bf(Y ~ scale(Winter_condition) +
+                         scale(Hot_snaps) +
+                         scale(Acute_Kd_12week) +
+                         Island +
+                         scale(Long_Term_Kd_Variability) +
+                         scale(wave_sd) +
+                         scale(Acute_Chla_4week) + 
+                         scale(SST_90dMean)),
+              family = zero_inflated_poisson(),
+              data = ga_gbr,
+              chains = 2) 
+
+conditional_effects(GA_GBR_model)
+summary(GA_GBR_model)
+
+saveRDS(GA_GBR_model, file = "Compiled_data/model_objects/GA_GBR_model.Rds")
+
+# poisson priors
+# mean outcome = exp(mean + variance^2/2)
+# curve( dlnorm( x , 3 , 0.5 ) , from=0 , to=100 , n=200 )                        
+
+# predict
+ga_gbr_predictions <- predict(GA_GBR_model, 
+                              newdata = ga_gbr, 
+                              summary = FALSE)
+
+# calculate prevalence and re-organize into data frame 
+# with each column representing ID 1 - N, and each row
+# a sample from the posterior distribution
+prev_predictions <- t(t(ga_gbr_predictions))
+prev_predictions <- as.data.frame(prev_predictions)
+prev_predictions <- sapply( 1:nrow(ga_gbr) , function(k) mean(k) )
+plot(ga_gbr$Y, prev_predictions)
+
+# WS GBR ---------------------------------------------------
+ws_gbr <- subset(WS_data, Region == "GBR")
+ws_gbr <- ws_gbr[, c("Y", 
+                     "Fish_abund", 
+                     "Winter_condition", 
+                     "Month", 
+                     "wave_sd", 
+                     "Hot_snaps", 
+                     "Coral_cover",
+                     "Three_Week_Chl_Variability",
+                     "Island",
+                     "Acute_Chla_8week" #12week pretty similar
+                     )]
+
+ws_gbr <- ws_gbr[complete.cases(ws_gbr), ]
+ws_gbr$Y <- as.integer(ws_gbr$Y)
+
+WS_GBR_model <- brm(bf(Y ~ scale(Fish_abund) +
+                         scale(Winter_condition) +
+                         Month +
+                         scale(wave_sd) + 
+                         scale(Hot_snaps) +
+                         scale(Coral_cover) +
+                         scale(Three_Week_Chl_Variability) +
+                         Island +
+                         scale(Acute_Chla_8week)),
+                    family = zero_inflated_poisson(),
+                    data = ws_gbr,
+                    chains = 3) 
+
+conditional_effects(WS_GBR_model)
+summary(WS_GBR_model)
+
+saveRDS(WS_GBR_model, file = "Compiled_data/model_objects/WS_GBR_model.Rds")
+
+# predict
+ws_gbr_predictions <- predict(WS_GBR_model, 
+                              newdata = ws_gbr, 
+                              summary = FALSE)
+
+# calculate prevalence and re-organize into data frame 
+# with each column representing ID 1 - N, and each row
+# a sample from the posterior distribution
+prev_predictions <- t(t(ws_gbr_predictions))
+prev_predictions <- as.data.frame(prev_predictions)
+prev_predictions <- sapply( 1:nrow(ws_gbr) , function(k) mean(k) )
+plot(ws_gbr$Y, prev_predictions)
+
+# run with simulated data array ----------------------------
 mod <- readRDS("Compiled_data/model_objects/gaPac_SizeFishWaveSDSSTMonthNight.Rds")
 
 # Make data to predict on
-medColSize <- seq(min(ga_pac$Median_colony_size), max(ga_pac$Median_colony_size), by = 30)
-FishAbundance <- seq(0.01, round(max(ga_pac$H_abund)), by = 0.2) # 0.1
-Lights <- seq(0, 255, by = 30)
-waveSD <- seq(min(ga_pac$wave_sd), max(ga_pac$wave_sd), by = 10)
-SST <- seq(round(min(ga_pac$SST_90dMean)-3), round(max(ga_pac$SST_90dMean)), by = 2)
-months <- seq.Date(from = as.Date("2020-01-01"), to = as.Date("2020-12-31"), by = "month")
-months <- format(months, "%m")
+medColSize <- seq(0, 200, 50) #seq(min(ga_pac$Median_colony_size), max(ga_pac$Median_colony_size), by = 50)
+FishAbundance <- seq(0.01, 1., 0.3)#seq(0.01, round(max(ga_pac$H_abund)), by = 0.3) # 0.1
+Lights <- seq(0, 255, 50)#seq(0, 255, by = 50)
+waveSD <- seq(0, 42, 20)#seq(min(ga_pac$wave_sd), max(ga_pac$wave_sd), by = 20)
+SST <- seq(20, 30, 2)#seq(round(min(ga_pac$SST_90dMean)-3), round(max(ga_pac$SST_90dMean)), by = 2)
+months <- seq(1, 12, 2)#seq.Date(from = as.Date("2020-01-01"), to = as.Date("2020-12-31"), by = "2 months")
+#months <- format(months, "%m")
 
 # create array
 Lcol <- length(medColSize)
@@ -39,8 +394,8 @@ Lsst <- length(SST)
 Lmonths <- length(months)
 
 Nunique <- Lcol * Lfish * Llights * LwaveSD * Lsst * Lmonths
-ids <- 1:Nunique
-ids <- paste0("V", ids)
+ids <- 0:Nunique
+# ids <- paste0("V", ids)
 
 newDataArray <- array(data = ids,
                       dim = c(Lcol, Lfish, Llights, LwaveSD, Lsst, Lmonths),
@@ -72,19 +427,32 @@ newdata$C <- C
 # predict
 ga_predictions <- predict(mod, newdata = newdata, summary = F)
 
-# calculate prevalence
+# calculate prevalence 
 prev_predictions <- t(t(ga_predictions)/newdata$C)
 
 # save data for Gang
 outputGang <- as.data.frame(prev_predictions)
-write.csv(outputGang, "Compiled_data/posterior_predictions_Gang.csv", row.names = F)
-
+outputGang <- outputGang[1:250,]
+write.csv(outputGang, "Compiled_data/posterior_predictions_Gang_small.csv", row.names = F)
 
 # ----------------
+nestedTest <- brm(bf(Y|trials(C) ~ scale(Median_colony_size) #+
+                                  # (1|Region) +
+                                  # (1|Month)
+),
+data = ga_pac,
+family = zero_inflated_binomial(),
+# mc.cores = parallel::detectCores(),
+chains = 1)
+
+conditional_effects(nestedTest)
+summary(nestedTest)
+
+
 gaPac_SizeCovWaveMean <- brm(bf(Y|trials(C) ~ scale(Median_colony_size) +
                               scale(Poritidae_mean_cover) +
                               # scale(H_abund) +
-                              scale(wave_mean) #+
+                              scale(wave_mean) +
                               # scale(SST_90dMean) +
                               # Region +
                             # Month
