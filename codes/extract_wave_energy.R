@@ -1,32 +1,36 @@
-
 # Extract wave energy data ---------------------------------------------------------------
-# load ga data
+
+# load libraries
+library(ncdf4)
+library(raster)
+
+# load wave energy data
+wave_mean_nc <- brick("Data/sesync_wave_energy_data/msec_wave_mean.nc")
+
+# survey data ----------------------------------------------------------------------------
+# load survey data
 load("Compiled_data/Survey_points.RData")
 
-# split into 10000 row chunks to get wave energy data from sesync
-surveys$long <- surveys$Longitude
-surveys$lat <- surveys$Latitude
-surveys_split <- split(surveys, rep(1:ceiling(nrow(surveys)/10000), each=10000, length.out=nrow(surveys)))
+# extract wave energy data by survey points
+survey_wave_mean <- extract(wave_mean_nc, cbind(surveys$Longitude, surveys$Latitude))
 
-for(j in 1:length(surveys_split)){
-  df <- surveys_split[[j]]
-  write.csv(df, paste0("Data/wave_energy_surveys/surveys_", j, ".csv"), row.names = F)
-}
+# add wave energy data to surveys
+surveys$wave_mean <- survey_wave_mean
 
-# get data manually through https://shiny.sesync.org/apps/msec/
+# rename and save data
+wave_energy <- surveys
+save(wave_energy, file = "Compiled_data/surveys_with_wave_energy.RData")
 
-# Load, merge, and save wave energy data -------------------------------------------------
-msec_files <- list.files("Compiled_data/msec_out")
-wave_data <- data.frame() 
+# grid data ----------------------------------------------------------------------------
+# load survey data
+load("Compiled_data/grid.RData")
 
-for(i in 1:length(msec_files)){
-  filename <- paste0("Compiled_data/msec_out/", msec_files[i])
-  x <- read.csv(filename, stringsAsFactors = F, head = T)
-  wave_data <- rbind(wave_data, x)
-}
+# extract wave energy data by survey points
+survey_wave_mean <- extract(wave_mean_nc, cbind(reefsDF$Longitude, reefsDF$Latitude))
 
-colnames(wave_data)[which(colnames(wave_data) == "long")] <- "Longitude"
-colnames(wave_data)[which(colnames(wave_data) == "lat")] <- "Latitude"
-wave_data <- unique(wave_data)
+# add wave energy data to surveys
+reefsDF$wave_mean <- survey_wave_mean
 
-write.csv(wave_data, "Compiled_data/msec_out_wave.csv", row.names = F)
+# rename and save data
+wave_energy <- reefsDF
+save(wave_energy, file = "Compiled_data/grid_with_wave_energy.RData")
